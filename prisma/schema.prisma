@@ -1,0 +1,251 @@
+// DevLog AI - Database schema
+// 이 파일은 설계 문서(4단계 DB 설계, 6단계 Timeline Engine 설계)에서 확정한 ERD를 그대로 반영합니다.
+// 새 테이블/컬럼을 추가할 때는 반드시 설계 문서를 먼저 갱신한 뒤 이 파일을 수정합니다.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Workspace {
+  id        String    @id @default(cuid())
+  name      String
+  createdAt DateTime  @default(now())
+  projects  Project[]
+}
+
+model Project {
+  id          String    @id @default(cuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+  name        String
+  rootPath    String    @unique
+  createdAt   DateTime  @default(now())
+  archivedAt  DateTime?
+
+  events          Event[]
+  sessions        Session[]
+  documents       Document[]
+  connectors      Connector[]
+  knowledgeEntries KnowledgeEntry[]
+
+  @@index([workspaceId])
+}
+
+model Plugin {
+  key          String   @id
+  name         String
+  // collector | exporter | generator
+  type         String
+  version      String
+  // SQLite 커넥터는 Json 타입을 지원하지 않아 JSON 문자열로 직렬화해 저장
+  configSchema String
+  permissions  String
+  description  String?
+
+  connectors Connector[]
+
+  @@index([type])
+}
+
+model Connector {
+  id                String    @id @default(cuid())
+  pluginKey         String
+  plugin            Plugin    @relation(fields: [pluginKey], references: [key])
+  projectId         String?
+  project           Project?  @relation(fields: [projectId], references: [id])
+  // JSON 문자열로 직렬화해 저장 (SQLite는 Json 타입 미지원)
+  config            String
+  // enabled | disabled | error
+  status            String    @default("enabled")
+  lastHealthCheckAt DateTime?
+  lastError         String?
+  createdAt         DateTime  @default(now())
+
+  events Event[]
+
+  @@index([pluginKey, projectId])
+  @@index([status])
+}
+
+model Event {
+  id          String    @id @default(cuid())
+  projectId   String?
+  project     Project?  @relation(fields: [projectId], references: [id])
+  connectorId String
+  connector   Connector @relation(fields: [connectorId], references: [id])
+
+  source String
+  type   String
+
+  occurredAt DateTime
+  recordedAt DateTime @default(now())
+
+  dedupKey String @unique
+
+  sessionId String?
+  session   Session? @relation(fields: [sessionId], references: [id])
+
+  // 표준화된 연결 신호: filePath, branch, traceId, resource, externalSessionRef 등 (JSON 문자열)
+  correlationHints String?
+  // 소스별 원본/상세 데이터 (JSON 문자열, SQLite는 Json 타입 미지원)
+  payload          String
+
+  // 로그/DB처럼 반복 발생을 억제(collapse)한 이벤트의 누적 발생 횟수
+  occurrenceCount Int @default(1)
+
+  linksAsA          EventLink[]              @relation("EventLinkA")
+  linksAsB          EventLink[]              @relation("EventLinkB")
+  evidenceFor       DocumentEvidence[]
+  knowledgeEvidence KnowledgeEventEvidence[]
+
+  @@index([projectId, occurredAt])
+  @@index([sessionId])
+  @@index([connectorId])
+}
+
+model Session {
+  id      String   @id @default(cuid())
+  projectId String
+  project Project  @relation(fields: [projectId], references: [id])
+
+  startAt DateTime
+  endAt   DateTime
+
+  title   String?
+  summary String?
+
+  algorithmVersion Int
+  createdAt        DateTime @default(now())
+
+  events Event[]
+
+  @@index([projectId, startAt])
+  @@index([algorithmVersion])
+}
+
+model EventLink {
+  id String @id @default(cuid())
+
+  eventIdA String
+  eventA   Event @relation("EventLinkA", fields: [eventIdA], references: [id])
+  eventIdB String
+  eventB   Event @relation("EventLinkB", fields: [eventIdB], references: [id])
+
+  // same_trace | same_file | same_session_ref
+  linkType String
+  // strong | weak
+  confidence String
+
+  algorithmVersion Int
+  createdAt        DateTime @default(now())
+
+  @@index([eventIdA])
+  @@index([eventIdB])
+  @@index([linkType, confidence])
+}
+
+model Document {
+  id        String  @id @default(cuid())
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id])
+
+  // worklog | troubleshooting | meeting | weekly | monthly
+  type        String
+  periodStart DateTime
+  periodEnd   DateTime
+
+  // draft | final
+  status String @default("draft")
+
+  // 최신/확정 DocumentVersion.id를 가리키는 캐시 포인터 (Prisma 관계가 아닌 단순 참조값)
+  currentVersionId String?
+
+  createdAt   DateTime  @default(now())
+  finalizedAt DateTime?
+
+  versions          DocumentVersion[]
+  evidence          DocumentEvidence[]
+  knowledgeEvidence KnowledgeDocumentEvidence[]
+
+  @@index([projectId, type, periodStart])
+  @@index([status])
+}
+
+model DocumentVersion {
+  id            String   @id @default(cuid())
+  documentId    String
+  document      Document @relation(fields: [documentId], references: [id])
+  versionNumber Int
+
+  content String
+
+  // ai_generated | user_edited
+  generatedBy String
+  sourceModel String?
+  changeNote  String?
+
+  createdAt DateTime @default(now())
+
+  @@unique([documentId, versionNumber])
+}
+
+model DocumentEvidence {
+  id         String   @id @default(cuid())
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id])
+  eventId    String
+  event      Event    @relation(fields: [eventId], references: [id])
+
+  // primary | context
+  role String?
+
+  @@unique([documentId, eventId])
+  @@index([eventId])
+}
+
+model KnowledgeEntry {
+  id        String  @id @default(cuid())
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id])
+
+  title    String
+  // 원인
+  cause    String?
+  // 해결방법
+  solution String?
+
+  sourceModel String?
+  createdAt   DateTime @default(now())
+
+  eventEvidence    KnowledgeEventEvidence[]
+  documentEvidence KnowledgeDocumentEvidence[]
+
+  @@index([projectId, createdAt])
+}
+
+model KnowledgeEventEvidence {
+  id          String         @id @default(cuid())
+  knowledgeId String
+  knowledge   KnowledgeEntry @relation(fields: [knowledgeId], references: [id])
+  eventId     String
+  event       Event          @relation(fields: [eventId], references: [id])
+
+  @@unique([knowledgeId, eventId])
+  @@index([eventId])
+}
+
+model KnowledgeDocumentEvidence {
+  id          String         @id @default(cuid())
+  knowledgeId String
+  knowledge   KnowledgeEntry @relation(fields: [knowledgeId], references: [id])
+  documentId  String
+  document    Document       @relation(fields: [documentId], references: [id])
+
+  @@unique([knowledgeId, documentId])
+  @@index([documentId])
+}

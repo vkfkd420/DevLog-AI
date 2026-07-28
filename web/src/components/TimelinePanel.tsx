@@ -1,0 +1,258 @@
+import { useEffect, useState } from 'react';
+import { computeCorrelation, fetchEvents, fetchSessions, generateKnowledgeFromEvent } from '../api';
+import type { SessionSummary, TimelineEvent } from '../types';
+
+function summarize(event: TimelineEvent): string {
+  const payload = event.payload ?? {};
+  switch (`${event.source}:${event.type}`) {
+    case 'git:commit':
+      return `커밋 "${payload.message}"`;
+    case 'ide:file_edit_burst':
+      return `${payload.filePath} 편집 (${payload.editCount}회)`;
+    case 'ide:run':
+      return `${payload.filePath} 실행 (종료 코드 ${payload.exitCode})`;
+    case 'ide:debug_session':
+      return `디버그 세션 (${payload.filePath ?? ''})`;
+    case 'ai-chat:chat_exchange':
+      return payload.question ? `AI 질문: ${String(payload.question).slice(0, 60)}` : 'AI 대화 (원문 비공개)';
+    default:
+      return String(event.type);
+  }
+}
+
+function formatTimeRange(startAt: string, endAt: string): string {
+  const opts: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit' };
+  return `${new Date(startAt).toLocaleTimeString('ko-KR', opts)} ~ ${new Date(endAt).toLocaleTimeString('ko-KR', opts)}`;
+}
+
+interface EventMeta {
+  icon: string;
+  category: string;
+  subtitle: string;
+}
+
+// 소스별로 아이콘/카테고리/부제(브랜치·파일·AI 툴)를 결정한다.
+// 에러(로그) 소스는 아직 Collector가 없어 이 분기는 지금은 타지 않지만,
+// 나중에 로그/에러 Collector가 생기면 바로 표시된다.
+function getEventMeta(event: TimelineEvent): EventMeta {
+  const payload = event.payload ?? {};
+  const hints = event.correlationHints ?? {};
+
+  if (event.type === 'error' || event.source === 'log') {
+    return { icon: '⚠️', category: 'Error', subtitle: String(payload.source ?? event.source) };
+  }
+
+  switch (event.source) {
+    case 'git':
+      return { icon: '🌿', category: 'Git', subtitle: String(hints.branch ?? payload.branch ?? '') };
+    case 'ide':
+      return { icon: '💻', category: 'IDE', subtitle: String(hints.filePath ?? payload.filePath ?? '') };
+    case 'ai-chat': {
+      const tool = payload.tool ? String(payload.tool) : '';
+      return { icon: '🤖', category: 'AI', subtitle: tool ? tool.charAt(0).toUpperCase() + tool.slice(1) : 'AI' };
+    }
+    case 'manual':
+      return { icon: '📝', category: '수동', subtitle: '' };
+    default:
+      return { icon: '•', category: event.source, subtitle: '' };
+  }
+}
+
+interface EventCardProps {
+  event: TimelineEvent;
+  projectName: string;
+  knowledgeBusy: boolean;
+  knowledgeDone: boolean;
+  onCreateKnowledge: (eventId: string) => void;
+}
+
+function EventCard({ event, projectName, knowledgeBusy, knowledgeDone, onCreateKnowledge }: EventCardProps) {
+  const meta = getEventMeta(event);
+  return (
+    <li>
+      <div className="timeline-row">
+        <span className="badge">
+          {meta.icon} {meta.category}
+        </span>
+        <span className="time">{new Date(event.occurredAt).toLocaleString('ko-KR')}</span>
+        <span className="event-project">{projectName}</span>
+      </div>
+      {meta.subtitle && <div className="event-subtitle">{meta.subtitle}</div>}
+      <span className="summary">{summarize(event)}</span>
+      {event.source === 'ai-chat' && (
+        <button
+          className="btn-secondary knowledge-cta"
+          onClick={() => onCreateKnowledge(event.id)}
+          disabled={knowledgeBusy || knowledgeDone}
+        >
+          {knowledgeDone ? '지식 항목 생성됨' : knowledgeBusy ? '생성 중...' : 'Knowledge로 만들기'}
+        </button>
+      )}
+    </li>
+  );
+}
+
+interface TimelinePanelProps {
+  projectId: string;
+  projectName: string;
+  onNavigateToConnectors: () => void;
+}
+
+export function TimelinePanel({ projectId, projectName, onNavigateToConnectors }: TimelinePanelProps) {
+  const [events, setEvents] = useState<TimelineEvent[]>([]);
+  const [sessions, setSessions] = useState<SessionSummary[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [recomputing, setRecomputing] = useState(false);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [knowledgeBusyIds, setKnowledgeBusyIds] = useState<Set<string>>(new Set());
+  const [knowledgeDoneIds, setKnowledgeDoneIds] = useState<Set<string>>(new Set());
+
+  const load = () => {
+    setLoading(true);
+    setError(null);
+    return Promise.all([fetchEvents(projectId), fetchSessions(projectId)])
+      .then(([eventData, sessionData]) => {
+        setEvents([...eventData].reverse());
+        setSessions(sessionData);
+      })
+      .catch((e) => setError(String(e)))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    setExpanded(new Set());
+    load();
+  }, [projectId]);
+
+  const handleRecompute = async () => {
+    setRecomputing(true);
+    setError(null);
+    try {
+      await computeCorrelation(projectId);
+      await load();
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setRecomputing(false);
+    }
+  };
+
+  const toggleSession = (id: string) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const eventsBySession = (sessionId: string) => events.filter((event) => event.sessionId === sessionId);
+  const unclustered = events.filter((event) => !event.sessionId);
+
+  const handleCreateKnowledge = async (eventId: string) => {
+    setKnowledgeBusyIds((prev) => new Set(prev).add(eventId));
+    setError(null);
+    try {
+      await generateKnowledgeFromEvent(eventId);
+      setKnowledgeDoneIds((prev) => new Set(prev).add(eventId));
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setKnowledgeBusyIds((prev) => {
+        const next = new Set(prev);
+        next.delete(eventId);
+        return next;
+      });
+    }
+  };
+
+  return (
+    <section className="panel">
+      <div className="panel-toolbar">
+        <h2>Timeline</h2>
+        <button className="btn-secondary" onClick={handleRecompute} disabled={recomputing}>
+          {recomputing ? '계산 중...' : '세션 재계산'}
+        </button>
+      </div>
+      {error && <p className="error">{error}</p>}
+
+      {loading ? (
+        <p className="empty">불러오는 중...</p>
+      ) : events.length === 0 ? (
+        <div className="timeline-empty">
+          <p className="empty">
+            아직 연결된 데이터가 없습니다. Git, IDE 등 커넥터를 연결하면 활동이 자동으로 기록됩니다.
+          </p>
+          <button className="connect-cta" onClick={onNavigateToConnectors}>
+            커넥터 연결
+          </button>
+        </div>
+      ) : sessions.length === 0 ? (
+        <div className="timeline-empty">
+          <p className="empty">아직 세션이 계산되지 않았습니다. 기록된 이벤트 {events.length}건이 있습니다.</p>
+          <button className="connect-cta" onClick={handleRecompute} disabled={recomputing}>
+            {recomputing ? '계산 중...' : '세션 계산하기'}
+          </button>
+        </div>
+      ) : (
+        <>
+          {sessions.map((session) => (
+            <div key={session.id} className="session-card">
+              <button className="session-header" onClick={() => toggleSession(session.id)}>
+                <div className="session-header-main">
+                  <span className="session-number">Session #{session.sessionNumber}</span>
+                  <span className="session-time">{formatTimeRange(session.startAt, session.endAt)}</span>
+                </div>
+                <div className="session-title">{session.title}</div>
+                <div className="session-counts">
+                  <span>{session.eventCount} Events</span>
+                  <span>{session.commitCount} Commits</span>
+                  <span>{session.aiQuestionCount} AI Questions</span>
+                  <span>{session.errorCount} Errors</span>
+                </div>
+              </button>
+              {expanded.has(session.id) && (
+                <ul className="timeline-list session-events">
+                  {eventsBySession(session.id).map((event) => (
+                    <EventCard
+                      key={event.id}
+                      event={event}
+                      projectName={projectName}
+                      knowledgeBusy={knowledgeBusyIds.has(event.id)}
+                      knowledgeDone={knowledgeDoneIds.has(event.id)}
+                      onCreateKnowledge={handleCreateKnowledge}
+                    />
+                  ))}
+                </ul>
+              )}
+            </div>
+          ))}
+
+          {unclustered.length > 0 && (
+            <div className="session-card">
+              <div className="session-header session-header-static">
+                <div className="session-title">미분류 이벤트 ({unclustered.length})</div>
+              </div>
+              <ul className="timeline-list session-events">
+                {unclustered.map((event) => (
+                  <EventCard
+                    key={event.id}
+                    event={event}
+                    projectName={projectName}
+                    knowledgeBusy={knowledgeBusyIds.has(event.id)}
+                    knowledgeDone={knowledgeDoneIds.has(event.id)}
+                    onCreateKnowledge={handleCreateKnowledge}
+                  />
+                ))}
+              </ul>
+            </div>
+          )}
+        </>
+      )}
+    </section>
+  );
+}
