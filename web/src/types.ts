@@ -5,6 +5,15 @@ export interface Project {
   archivedAt: string | null;
 }
 
+export interface QuickRegisterResult {
+  project: Project;
+  connectorId: string;
+  scannedCommits: number;
+  truncated: boolean;
+  sessionsCreated: number;
+  syncError: string | null;
+}
+
 export interface TimelineEvent {
   id: string;
   source: string;
@@ -56,6 +65,13 @@ export interface Plugin {
   configSchema: Record<string, unknown>;
   permissions: string[];
   description: string;
+}
+
+export interface AutoSyncResult {
+  ranAt: string;
+  syncedConnectors: number;
+  failedConnectors: number;
+  projectsRecomputed: number;
 }
 
 export interface Connector {

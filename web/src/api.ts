@@ -1,4 +1,5 @@
 import type {
+  AutoSyncResult,
   Connector,
   DocumentDetail,
   DocumentSummary,
@@ -8,6 +9,7 @@ import type {
   KnowledgeEntrySummary,
   Plugin,
   Project,
+  QuickRegisterResult,
   SearchResult,
   SessionSummary,
   TimelineEvent,
@@ -31,8 +33,9 @@ export function fetchProjects(includeArchived = false): Promise<Project[]> {
   return request<Project[]>(`/projects${includeArchived ? '?includeArchived=true' : ''}`);
 }
 
-export function registerProject(name: string, rootPath: string): Promise<Project> {
-  return request<Project>('/projects', {
+// 프로젝트 등록 + git-collector 커넥터 등록 + 초기 동기화 + 세션 재계산을 한 번에 처리.
+export function quickRegisterProject(name: string, rootPath: string): Promise<QuickRegisterResult> {
+  return request<QuickRegisterResult>('/projects/quick-register', {
     method: 'POST',
     body: JSON.stringify({ name, rootPath }),
   });
@@ -43,6 +46,10 @@ export function updateProject(id: string, patch: { name?: string; archived?: boo
     method: 'PATCH',
     body: JSON.stringify(patch),
   });
+}
+
+export function deleteProject(id: string): Promise<{ id: string; deleted: boolean }> {
+  return request(`/projects/${id}`, { method: 'DELETE' });
 }
 
 export function fetchEvents(projectId: string): Promise<TimelineEvent[]> {
@@ -124,6 +131,11 @@ export function updateConnector(
 
 export function syncGitConnector(id: string): Promise<{ connectorId: string; scannedCommits: number; truncated: boolean }> {
   return request(`/git-collector/${id}/sync`, { method: 'POST' });
+}
+
+// 5분 주기 자동 동기화를 기다리지 않고 지금 바로 전체 git-collector를 동기화 + 세션 재계산.
+export function runAllSync(): Promise<AutoSyncResult> {
+  return request<AutoSyncResult>('/sync/run-all', { method: 'POST' });
 }
 
 export function fetchSessions(projectId: string): Promise<SessionSummary[]> {

@@ -7,6 +7,6 @@ import { CorrelationService } from './correlation.service';
 @Module({
   controllers: [TimelineController, CorrelationController],
   providers: [TimelineService, CorrelationService],
-  exports: [TimelineService],
+  exports: [TimelineService, CorrelationService],
 })
 export class TimelineModule {}

@@ -4,10 +4,11 @@ import {
   fetchPlugins,
   fetchProjects,
   registerConnector,
+  runAllSync,
   syncGitConnector,
   updateConnector,
 } from '../api';
-import type { Connector, Plugin, Project } from '../types';
+import type { AutoSyncResult, Connector, Plugin, Project } from '../types';
 
 export function ConnectorsPanel() {
   const [plugins, setPlugins] = useState<Plugin[]>([]);
@@ -18,6 +19,8 @@ export function ConnectorsPanel() {
   const [config, setConfig] = useState('{}');
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [syncingAll, setSyncingAll] = useState(false);
+  const [lastSyncResult, setLastSyncResult] = useState<AutoSyncResult | null>(null);
 
   const reload = () => fetchConnectors().then(setConnectors);
 
@@ -70,6 +73,20 @@ export function ConnectorsPanel() {
     }
   };
 
+  const handleSyncAll = async () => {
+    setSyncingAll(true);
+    setError(null);
+    try {
+      const result = await runAllSync();
+      setLastSyncResult(result);
+      await reload();
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setSyncingAll(false);
+    }
+  };
+
   const handleSync = async (connector: Connector) => {
     setBusyId(connector.id);
     setError(null);
@@ -112,7 +129,21 @@ export function ConnectorsPanel() {
       </div>
       {error && <p className="error">{error}</p>}
 
-      <h2>등록된 Connector</h2>
+      <div className="panel-toolbar">
+        <h2>등록된 Connector</h2>
+        <div className="document-actions">
+          {lastSyncResult && (
+            <span className="empty">
+              마지막 동기화: 성공 {lastSyncResult.syncedConnectors} / 실패 {lastSyncResult.failedConnectors} (
+              {new Date(lastSyncResult.ranAt).toLocaleTimeString('ko-KR')})
+            </span>
+          )}
+          <button className="btn-secondary" onClick={handleSyncAll} disabled={syncingAll}>
+            {syncingAll ? '동기화 중...' : '지금 전체 동기화'}
+          </button>
+        </div>
+      </div>
+      <p className="empty">git-collector는 5분마다 자동으로 동기화되고 세션도 자동 재계산됩니다.</p>
       {connectors.length === 0 ? (
         <p className="empty">등록된 Connector가 없습니다.</p>
       ) : (

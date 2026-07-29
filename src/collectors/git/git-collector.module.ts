@@ -9,5 +9,6 @@ import { GitCollectorService } from './git-collector.service';
   imports: [ConnectorModule, ProjectModule, TimelineModule],
   controllers: [GitCollectorController],
   providers: [GitCollectorService],
+  exports: [GitCollectorService],
 })
 export class GitCollectorModule {}

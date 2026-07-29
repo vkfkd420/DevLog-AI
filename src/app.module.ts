@@ -14,6 +14,8 @@ import { DocumentModule } from './documents/document.module';
 import { WorklogModule } from './documents/worklog/worklog.module';
 import { KnowledgeModule } from './knowledge/knowledge.module';
 import { SearchModule } from './search/search.module';
+import { AutoSyncModule } from './scheduler/auto-sync.module';
+import { QuickRegisterModule } from './onboarding/quick-register.module';
 
 @Module({
   imports: [
@@ -30,6 +32,8 @@ import { SearchModule } from './search/search.module';
     WorklogModule,
     KnowledgeModule,
     SearchModule,
+    AutoSyncModule,
+    QuickRegisterModule,
   ],
   controllers: [AppController],
   providers: [AppService],

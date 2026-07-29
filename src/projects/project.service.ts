@@ -68,4 +68,41 @@ export class ProjectService {
       throw error;
     }
   }
+
+  /**
+   * 프로젝트와 그에 딸린 모든 데이터(이벤트/세션/커넥터/업무일지/Knowledge)를 완전히 삭제한다.
+   * archive와 달리 되돌릴 수 없다 — FK 제약을 지키기 위해 자식 테이블부터 순서대로 지운다.
+   */
+  async remove(id: string): Promise<void> {
+    await this.getById(id);
+
+    const knowledgeEntries = await this.prisma.knowledgeEntry.findMany({ where: { projectId: id }, select: { id: true } });
+    const knowledgeIds = knowledgeEntries.map((k) => k.id);
+    if (knowledgeIds.length) {
+      await this.prisma.knowledgeEventEvidence.deleteMany({ where: { knowledgeId: { in: knowledgeIds } } });
+      await this.prisma.knowledgeDocumentEvidence.deleteMany({ where: { knowledgeId: { in: knowledgeIds } } });
+      await this.prisma.knowledgeEntry.deleteMany({ where: { id: { in: knowledgeIds } } });
+    }
+
+    const documents = await this.prisma.document.findMany({ where: { projectId: id }, select: { id: true } });
+    const documentIds = documents.map((d) => d.id);
+    if (documentIds.length) {
+      await this.prisma.documentEvidence.deleteMany({ where: { documentId: { in: documentIds } } });
+      await this.prisma.documentVersion.deleteMany({ where: { documentId: { in: documentIds } } });
+      await this.prisma.document.deleteMany({ where: { id: { in: documentIds } } });
+    }
+
+    const events = await this.prisma.event.findMany({ where: { projectId: id }, select: { id: true } });
+    const eventIds = events.map((e) => e.id);
+    if (eventIds.length) {
+      await this.prisma.eventLink.deleteMany({
+        where: { OR: [{ eventIdA: { in: eventIds } }, { eventIdB: { in: eventIds } }] },
+      });
+      await this.prisma.event.deleteMany({ where: { id: { in: eventIds } } });
+    }
+
+    await this.prisma.session.deleteMany({ where: { projectId: id } });
+    await this.prisma.connector.deleteMany({ where: { projectId: id } });
+    await this.prisma.project.delete({ where: { id } });
+  }
 }
