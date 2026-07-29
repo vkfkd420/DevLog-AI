@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
+  deleteDocument,
   editDocument,
   fetchDocument,
   fetchDocumentVersions,
@@ -8,72 +9,7 @@ import {
   generateWorklog,
 } from '../api';
 import type { DocumentDetail, DocumentSummary, DocumentVersionInfo } from '../types';
-
-interface WorklogPayload {
-  commits: number;
-  files: number;
-  aiQuestions: number;
-  errors: number;
-  troubleshooting: string;
-  tomorrow: string;
-  note: string;
-}
-
-// 기존 문서는 마크다운 문자열이 content에 그대로 들어있어 JSON.parse가 실패한다 —
-// 그 경우 null을 반환해 아래에서 <pre>로 예전처럼 보여주고, 새로 생성된 구조화 JSON만 카드로 렌더링한다.
-function parseWorklog(content: string | null): WorklogPayload | null {
-  if (!content) {
-    return null;
-  }
-  try {
-    const parsed = JSON.parse(content);
-    if (!parsed || typeof parsed !== 'object' || typeof parsed.commits !== 'number') {
-      return null;
-    }
-    return {
-      commits: parsed.commits ?? 0,
-      files: parsed.files ?? 0,
-      aiQuestions: parsed.aiQuestions ?? 0,
-      errors: parsed.errors ?? 0,
-      troubleshooting: parsed.troubleshooting ?? '',
-      tomorrow: parsed.tomorrow ?? '',
-      note: parsed.note ?? '',
-    };
-  } catch {
-    return null;
-  }
-}
-
-function WorklogCard({ payload }: { payload: WorklogPayload }) {
-  return (
-    <div className="worklog-card">
-      <div className="knowledge-section">
-        <div className="knowledge-section-label">오늘 작업</div>
-        <ul className="knowledge-related-list">
-          <li>✅ Git {payload.commits} Commit</li>
-          <li>✅ IDE {payload.files} Files</li>
-          <li>✅ AI {payload.aiQuestions} Questions</li>
-          <li>{payload.errors > 0 ? `✅ Error ${payload.errors}건 발생` : '✅ Error 없음'}</li>
-        </ul>
-      </div>
-      <div className="worklog-divider" />
-      <div className="knowledge-section">
-        <div className="knowledge-section-label">트러블슈팅</div>
-        <p>{payload.troubleshooting || '특별한 이슈가 없었습니다.'}</p>
-      </div>
-      <div className="worklog-divider" />
-      <div className="knowledge-section">
-        <div className="knowledge-section-label">내일 해야할 일</div>
-        <p>{payload.tomorrow || '제안된 작업이 없습니다.'}</p>
-      </div>
-      <div className="worklog-divider" />
-      <div className="knowledge-section">
-        <div className="knowledge-section-label">메모</div>
-        <p>{payload.note || '메모가 없습니다.'}</p>
-      </div>
-    </div>
-  );
-}
+import { parseWorklog, WorklogCard } from './WorklogCard';
 
 export function DocumentPanel({ projectId }: { projectId: string }) {
   const [documents, setDocuments] = useState<DocumentSummary[]>([]);
@@ -172,6 +108,24 @@ export function DocumentPanel({ projectId }: { projectId: string }) {
     }
   };
 
+  const handleDelete = async () => {
+    if (!selected) return;
+    if (!window.confirm('이 업무일지를 삭제할까요? 같은 날짜로 다시 생성할 수 있습니다.')) {
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      await deleteDocument(selected.id);
+      resetSelection();
+      await reload();
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const toggleVersions = async () => {
     if (!selected) return;
     if (!showVersions) {
@@ -230,6 +184,9 @@ export function DocumentPanel({ projectId }: { projectId: string }) {
                 </button>
               )}
               <button onClick={toggleVersions}>{showVersions ? '버전 이력 숨기기' : '버전 이력 보기'}</button>
+              <button className="btn-danger" onClick={handleDelete} disabled={busy}>
+                삭제
+              </button>
             </div>
           </div>
 

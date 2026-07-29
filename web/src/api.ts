@@ -72,6 +72,10 @@ export function finalizeDocument(id: string): Promise<{ id: string; status: stri
   return request(`/documents/${id}/finalize`, { method: 'POST' });
 }
 
+export function deleteDocument(id: string): Promise<{ id: string; deleted: boolean }> {
+  return request(`/documents/${id}`, { method: 'DELETE' });
+}
+
 export function fetchDocumentVersions(id: string): Promise<DocumentVersionInfo[]> {
   return request<DocumentVersionInfo[]>(`/documents/${id}/versions`);
 }

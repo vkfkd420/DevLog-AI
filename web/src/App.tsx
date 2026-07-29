@@ -12,7 +12,9 @@ import { InsightCards } from './components/InsightCards';
 import { ProjectStats } from './components/ProjectStats';
 import { KnowledgePanel } from './components/KnowledgePanel';
 import { SearchPanel } from './components/SearchPanel';
+import { CalendarPanel } from './components/CalendarPanel';
 import {
+  CalendarIcon,
   CloseIcon,
   ConnectorIcon,
   DashboardIcon,
@@ -24,7 +26,7 @@ import {
   SunIcon,
 } from './icons';
 
-type Tab = 'dashboard' | 'connectors' | 'projects' | 'knowledge' | 'search';
+type Tab = 'dashboard' | 'connectors' | 'projects' | 'knowledge' | 'search' | 'calendar';
 type Theme = 'dark' | 'light';
 
 const THEME_KEY = 'devlog-ai-theme';
@@ -35,6 +37,7 @@ function getInitialTheme(): Theme {
 
 const NAV_ITEMS: { key: Tab; label: string; icon: ReactNode }[] = [
   { key: 'dashboard', label: '대시보드', icon: <DashboardIcon /> },
+  { key: 'calendar', label: '달력', icon: <CalendarIcon /> },
   { key: 'knowledge', label: 'Knowledge', icon: <KnowledgeIcon /> },
   { key: 'search', label: 'Search', icon: <SearchIcon /> },
   { key: 'connectors', label: '커넥터', icon: <ConnectorIcon /> },
@@ -42,7 +45,7 @@ const NAV_ITEMS: { key: Tab; label: string; icon: ReactNode }[] = [
 ];
 
 // 프로젝트 선택 셀렉트가 필요한 탭 (프로젝트에 종속된 데이터를 보여주는 탭)
-const PROJECT_SCOPED_TABS: Tab[] = ['dashboard', 'knowledge', 'search'];
+const PROJECT_SCOPED_TABS: Tab[] = ['dashboard', 'calendar', 'knowledge', 'search'];
 
 export default function App() {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -146,6 +149,17 @@ export default function App() {
                 </main>
               </>
             )}
+          </>
+        )}
+
+        {tab === 'calendar' && (
+          <>
+            <header className="page-header">
+              <h1>달력</h1>
+              {projectSelect}
+            </header>
+            {!error && projects.length === 0 && <p className="empty">등록된 프로젝트가 없습니다.</p>}
+            {selectedProjectId && <CalendarPanel projectId={selectedProjectId} />}
           </>
         )}
 

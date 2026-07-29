@@ -755,6 +755,25 @@ textarea {
   cursor: default;
 }
 
+.btn-danger {
+  padding: 5px 13px;
+  border-radius: var(--radius);
+  border: 1px solid transparent;
+  background: var(--danger-bg);
+  color: var(--danger-text);
+  cursor: pointer;
+  font-size: 12.5px;
+}
+
+.btn-danger:hover {
+  border-color: var(--danger-text);
+}
+
+.btn-danger:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 /* ---------- Forms ---------- */
 
 .generate-form,
@@ -964,6 +983,94 @@ textarea {
 
 .knowledge-cta {
   margin-top: 8px;
+}
+
+/* ---------- Calendar ---------- */
+
+.calendar-layout {
+  display: grid;
+  grid-template-columns: 55fr 45fr;
+  gap: 20px;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .calendar-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.calendar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.calendar-header h2 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+
+.calendar-weekday {
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 600;
+  padding-bottom: 6px;
+}
+
+.calendar-cell {
+  position: relative;
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.calendar-cell:hover {
+  background: var(--surface-hover);
+}
+
+.calendar-cell-empty {
+  cursor: default;
+  pointer-events: none;
+}
+
+.calendar-cell-today {
+  border-color: var(--border-strong);
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.calendar-cell-selected {
+  background: var(--accent);
+  color: var(--accent-contrast);
+}
+
+.calendar-dot {
+  position: absolute;
+  bottom: 5px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.calendar-cell-selected .calendar-dot {
+  background: var(--accent-contrast);
 }
 
 /* ---------- Knowledge ---------- */

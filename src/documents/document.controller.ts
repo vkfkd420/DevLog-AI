@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { DocumentService } from './document.service';
 
@@ -38,5 +38,11 @@ export class DocumentController {
   @Post(':id/finalize')
   finalize(@Param('id') id: string) {
     return this.documentService.finalize(id);
+  }
+
+  @Delete(':id')
+  async remove(@Param('id') id: string) {
+    await this.documentService.remove(id);
+    return { id, deleted: true };
   }
 }

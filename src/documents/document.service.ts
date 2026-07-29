@@ -121,6 +121,15 @@ export class DocumentService {
     });
   }
 
+  /** 확정된 문서를 포함해 삭제할 수 있게 한다 — 삭제 후 같은 날짜로 재생성 가능. */
+  async remove(id: string): Promise<void> {
+    await this.findOrThrow(id);
+    await this.prisma.knowledgeDocumentEvidence.deleteMany({ where: { documentId: id } });
+    await this.prisma.documentEvidence.deleteMany({ where: { documentId: id } });
+    await this.prisma.documentVersion.deleteMany({ where: { documentId: id } });
+    await this.prisma.document.delete({ where: { id } });
+  }
+
   private async findOrThrow(id: string): Promise<Document> {
     const document = await this.prisma.document.findUnique({ where: { id } });
     if (!document) {
