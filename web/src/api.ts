@@ -53,6 +53,12 @@ export function fetchDocuments(projectId: string): Promise<DocumentSummary[]> {
   return request<DocumentSummary[]>(`/documents?projectId=${projectId}&type=worklog`);
 }
 
+// 프로젝트 필터 없이 모든 프로젝트의 업무일지를 가져온다 — 달력에서 날짜별로 어떤 프로젝트를
+// 작업했는지 프로젝트 색상별 점으로 표시하기 위함 (projectId 쿼리 생략 시 전체 조회).
+export function fetchAllWorklogDocuments(): Promise<DocumentSummary[]> {
+  return request<DocumentSummary[]>(`/documents?type=worklog`);
+}
+
 export function fetchDocument(id: string): Promise<DocumentDetail> {
   return request<DocumentDetail>(`/documents/${id}`);
 }

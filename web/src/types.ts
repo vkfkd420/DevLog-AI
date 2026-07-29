@@ -29,6 +29,7 @@ export interface SessionSummary {
 
 export interface DocumentSummary {
   id: string;
+  projectId: string;
   type: string;
   periodStart: string;
   periodEnd: string;
