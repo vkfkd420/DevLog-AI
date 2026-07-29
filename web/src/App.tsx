@@ -12,7 +12,17 @@ import { InsightCards } from './components/InsightCards';
 import { ProjectStats } from './components/ProjectStats';
 import { KnowledgePanel } from './components/KnowledgePanel';
 import { SearchPanel } from './components/SearchPanel';
-import { ConnectorIcon, DashboardIcon, KnowledgeIcon, MoonIcon, ProjectIcon, SearchIcon, SunIcon } from './icons';
+import {
+  CloseIcon,
+  ConnectorIcon,
+  DashboardIcon,
+  KnowledgeIcon,
+  MenuIcon,
+  MoonIcon,
+  ProjectIcon,
+  SearchIcon,
+  SunIcon,
+} from './icons';
 
 type Tab = 'dashboard' | 'connectors' | 'projects' | 'knowledge' | 'search';
 type Theme = 'dark' | 'light';
@@ -40,6 +50,7 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>('dashboard');
   const [theme, setTheme] = useState<Theme>(getInitialTheme);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -71,11 +82,32 @@ export default function App() {
 
   return (
     <div className="shell">
-      <aside className="sidebar">
+      <header className="topbar">
+        <button className="hamburger" onClick={() => setSidebarOpen(true)} aria-label="메뉴 열기">
+          <MenuIcon />
+        </button>
         <div className="brand">DevLog AI</div>
+      </header>
+
+      {sidebarOpen && <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)} />}
+
+      <aside className={`sidebar${sidebarOpen ? ' open' : ''}`}>
+        <div className="sidebar-header">
+          <div className="brand">DevLog AI</div>
+          <button className="sidebar-close" onClick={() => setSidebarOpen(false)} aria-label="메뉴 닫기">
+            <CloseIcon />
+          </button>
+        </div>
         <nav className="side-nav">
           {NAV_ITEMS.map((item) => (
-            <button key={item.key} className={tab === item.key ? 'active' : ''} onClick={() => setTab(item.key)}>
+            <button
+              key={item.key}
+              className={tab === item.key ? 'active' : ''}
+              onClick={() => {
+                setTab(item.key);
+                setSidebarOpen(false);
+              }}
+            >
               {item.icon}
               <span>{item.label}</span>
             </button>

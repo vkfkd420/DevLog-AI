@@ -98,54 +98,56 @@ export function ProjectsPanel() {
       {projects.length === 0 ? (
         <p className="empty">등록된 Project가 없습니다.</p>
       ) : (
-        <table className="connector-table">
-          <thead>
-            <tr>
-              <th>이름</th>
-              <th>rootPath</th>
-              <th>상태</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            {projects.map((project) => (
-              <tr key={project.id}>
-                <td>
-                  {editingId === project.id ? (
-                    <input value={editingName} onChange={(e) => setEditingName(e.target.value)} />
-                  ) : (
-                    project.name
-                  )}
-                </td>
-                <td className="path-cell" title={project.rootPath}>
-                  {project.rootPath}
-                </td>
-                <td>
-                  <span className={`status-badge ${project.archivedAt ? 'disabled' : 'enabled'}`}>
-                    {project.archivedAt ? 'archived' : 'active'}
-                  </span>
-                </td>
-                <td className="actions-cell">
-                  {editingId === project.id ? (
-                    <>
-                      <button disabled={busyId === project.id} onClick={saveEdit}>
-                        저장
-                      </button>
-                      <button onClick={cancelEdit}>취소</button>
-                    </>
-                  ) : (
-                    <>
-                      <button onClick={() => startEdit(project)}>이름변경</button>
-                      <button disabled={busyId === project.id} onClick={() => handleToggleArchive(project)}>
-                        {project.archivedAt ? '복구' : 'archive'}
-                      </button>
-                    </>
-                  )}
-                </td>
+        <div className="table-scroll">
+          <table className="connector-table">
+            <thead>
+              <tr>
+                <th>이름</th>
+                <th>rootPath</th>
+                <th>상태</th>
+                <th />
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {projects.map((project) => (
+                <tr key={project.id}>
+                  <td>
+                    {editingId === project.id ? (
+                      <input value={editingName} onChange={(e) => setEditingName(e.target.value)} />
+                    ) : (
+                      project.name
+                    )}
+                  </td>
+                  <td className="path-cell" title={project.rootPath}>
+                    {project.rootPath}
+                  </td>
+                  <td>
+                    <span className={`status-badge ${project.archivedAt ? 'disabled' : 'enabled'}`}>
+                      {project.archivedAt ? 'archived' : 'active'}
+                    </span>
+                  </td>
+                  <td className="actions-cell">
+                    {editingId === project.id ? (
+                      <>
+                        <button disabled={busyId === project.id} onClick={saveEdit}>
+                          저장
+                        </button>
+                        <button onClick={cancelEdit}>취소</button>
+                      </>
+                    ) : (
+                      <>
+                        <button onClick={() => startEdit(project)}>이름변경</button>
+                        <button disabled={busyId === project.id} onClick={() => handleToggleArchive(project)}>
+                          {project.archivedAt ? '복구' : 'archive'}
+                        </button>
+                      </>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </section>
   );

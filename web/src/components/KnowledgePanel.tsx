@@ -26,7 +26,7 @@ export function KnowledgePanel({ projectId }: { projectId: string }) {
   const filtered = entries.filter((entry) => entry.title.toLowerCase().includes(search.toLowerCase()));
 
   return (
-    <div className="knowledge-layout">
+    <div className={`knowledge-layout${selected ? '' : ' single-column'}`}>
       <section className="panel">
         <h2>Knowledge</h2>
         <input

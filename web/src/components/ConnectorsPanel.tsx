@@ -116,41 +116,43 @@ export function ConnectorsPanel() {
       {connectors.length === 0 ? (
         <p className="empty">등록된 Connector가 없습니다.</p>
       ) : (
-        <table className="connector-table">
-          <thead>
-            <tr>
-              <th>Plugin</th>
-              <th>Project</th>
-              <th>Status</th>
-              <th>최근 오류</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            {connectors.map((connector) => (
-              <tr key={connector.id}>
-                <td>{connector.pluginKey}</td>
-                <td>{projectName(connector.projectId)}</td>
-                <td>
-                  <span className={`status-badge ${connector.status}`}>{connector.status}</span>
-                </td>
-                <td className="error-cell" title={connector.lastError ?? ''}>
-                  {connector.lastError ?? '-'}
-                </td>
-                <td className="actions-cell">
-                  <button disabled={busyId === connector.id} onClick={() => handleToggleStatus(connector)}>
-                    {connector.status === 'enabled' ? '비활성화' : '활성화'}
-                  </button>
-                  {connector.pluginKey === 'git-collector' && (
-                    <button disabled={busyId === connector.id} onClick={() => handleSync(connector)}>
-                      동기화
-                    </button>
-                  )}
-                </td>
+        <div className="table-scroll">
+          <table className="connector-table">
+            <thead>
+              <tr>
+                <th>Plugin</th>
+                <th>Project</th>
+                <th>Status</th>
+                <th>최근 오류</th>
+                <th />
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {connectors.map((connector) => (
+                <tr key={connector.id}>
+                  <td>{connector.pluginKey}</td>
+                  <td>{projectName(connector.projectId)}</td>
+                  <td>
+                    <span className={`status-badge ${connector.status}`}>{connector.status}</span>
+                  </td>
+                  <td className="error-cell" title={connector.lastError ?? ''}>
+                    {connector.lastError ?? '-'}
+                  </td>
+                  <td className="actions-cell">
+                    <button disabled={busyId === connector.id} onClick={() => handleToggleStatus(connector)}>
+                      {connector.status === 'enabled' ? '비활성화' : '활성화'}
+                    </button>
+                    {connector.pluginKey === 'git-collector' && (
+                      <button disabled={busyId === connector.id} onClick={() => handleSync(connector)}>
+                        동기화
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </section>
   );

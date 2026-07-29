@@ -93,15 +93,133 @@ textarea {
   color: var(--text-primary);
 }
 
+/* 데스크톱 기본값: 항상 펼쳐진 고정 사이드바. 모바일 전용 chrome은 숨긴다. */
+.topbar {
+  display: none;
+  /* 보일 때(모바일)는 flex-wrap으로 줄바꿈을 강제해 sidebar/content 위에 항상 전체 폭으로 올라오게 한다 */
+  flex: 1 1 100%;
+  order: -1;
+}
+
+.sidebar-overlay {
+  display: none;
+}
+
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sidebar-close {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.sidebar-close:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+
 .sidebar {
+  position: relative;
   width: 220px;
-  flex-shrink: 0;
+  min-width: 220px;
+  max-width: 220px;
+  flex: 0 0 220px;
   background: var(--surface);
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
   padding: 20px 14px;
   gap: 24px;
+  transform: none;
+}
+
+@media (max-width: 900px) {
+  /* 모바일: 사이드바를 슬라이드 인/아웃 드로어로 전환.
+     topbar가 flex-basis:100%로 줄바꿈을 강제하므로, 남는 세로 공간이 줄에 분배되지 않게 flex-start로 고정 */
+  .shell {
+    flex-wrap: wrap;
+    align-content: flex-start;
+  }
+
+  .topbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    z-index: 20;
+  }
+
+  .hamburger {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border: 1px solid var(--border);
+    background: transparent;
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+
+  .hamburger:hover {
+    background: var(--surface-hover);
+    color: var(--text-primary);
+  }
+
+  .sidebar-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.35);
+    z-index: 30;
+  }
+
+  .sidebar-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 240px;
+    min-width: 240px;
+    max-width: 240px;
+    flex: none;
+    padding: 16px 14px;
+    z-index: 40;
+    transform: translateX(-100%);
+    transition: transform 0.22s ease;
+    box-shadow: var(--shadow-pop);
+  }
+
+  .sidebar.open {
+    transform: translateX(0);
+  }
+
+  .sidebar-close {
+    display: flex;
+  }
 }
 
 .brand {
@@ -109,6 +227,10 @@ textarea {
   font-weight: 700;
   padding: 0 10px;
   letter-spacing: -0.01em;
+}
+
+.topbar .brand {
+  padding: 0;
 }
 
 .side-nav {
@@ -168,8 +290,10 @@ textarea {
 
 .content {
   flex: 1;
+  min-width: 0;
   padding: 28px 36px;
   max-width: 1600px;
+  margin: 0 auto;
 }
 
 .page-header {
@@ -495,16 +619,14 @@ textarea {
   .summary-cards {
     grid-template-columns: repeat(3, 1fr);
   }
-  .shell {
-    flex-direction: column;
+  .content {
+    padding: 20px 16px;
   }
-  .sidebar {
-    width: 100%;
-    flex-direction: row;
-    align-items: center;
-  }
-  .side-nav {
-    flex-direction: row;
+}
+
+@media (max-width: 480px) {
+  .summary-cards {
+    grid-template-columns: repeat(2, 1fr);
   }
 }
 
@@ -672,6 +794,23 @@ textarea {
   font-family: 'SFMono-Regular', Consolas, monospace;
 }
 
+@media (max-width: 640px) {
+  /* 좁은 화면에서 select/input이 나란히 눌려 글자가 잘리는 것을 막고 세로로 쌓는다 */
+  .generate-form,
+  .connector-form {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .generate-form input,
+  .connector-form select,
+  .connector-form input,
+  .config-input {
+    min-width: 0;
+    width: 100%;
+  }
+}
+
 .checkbox-label {
   display: flex;
   align-items: center;
@@ -835,6 +974,12 @@ textarea {
   gap: 20px;
 }
 
+/* 선택된 항목이 없을 때는 목록 패널이 35%로 좁게 눌려 오른쪽이 빈 공간으로 남으므로,
+   웹 화면에서는 목록만 전체 폭으로 넓혀 보여준다 */
+.knowledge-layout.single-column {
+  grid-template-columns: 1fr;
+}
+
 @media (max-width: 900px) {
   .knowledge-layout {
     grid-template-columns: 1fr;
@@ -995,8 +1140,14 @@ textarea {
 
 /* ---------- Tables ---------- */
 
+.table-scroll {
+  width: 100%;
+  overflow-x: auto;
+}
+
 .connector-table {
   width: 100%;
+  min-width: 560px;
   border-collapse: collapse;
   font-size: 13px;
 }

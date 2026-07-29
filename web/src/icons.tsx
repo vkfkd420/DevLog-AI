@@ -71,3 +71,19 @@ export function SearchIcon() {
     </svg>
   );
 }
+
+export function MenuIcon() {
+  return (
+    <svg {...common}>
+      <path d="M3 6h18M3 12h18M3 18h18" />
+    </svg>
+  );
+}
+
+export function CloseIcon() {
+  return (
+    <svg {...common}>
+      <path d="M18 6 6 18M6 6l12 12" />
+    </svg>
+  );
+}
