@@ -52,8 +52,9 @@ export function deleteProject(id: string): Promise<{ id: string; deleted: boolea
   return request(`/projects/${id}`, { method: 'DELETE' });
 }
 
-export function fetchEvents(projectId: string): Promise<TimelineEvent[]> {
-  return request<TimelineEvent[]>(`/events?projectId=${projectId}`);
+// projectId를 생략하면(전체 보기) 모든 프로젝트의 이벤트를 가져온다.
+export function fetchEvents(projectId?: string): Promise<TimelineEvent[]> {
+  return request<TimelineEvent[]>(`/events${projectId ? `?projectId=${projectId}` : ''}`);
 }
 
 export function fetchDocuments(projectId: string): Promise<DocumentSummary[]> {

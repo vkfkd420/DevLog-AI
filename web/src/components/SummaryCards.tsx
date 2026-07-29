@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { fetchDocuments, fetchEvents } from '../api';
+import { fetchAllWorklogDocuments, fetchDocuments, fetchEvents } from '../api';
 import type { DocumentSummary, TimelineEvent } from '../types';
 
 interface DayStats {
@@ -65,12 +65,12 @@ const METRICS: MetricDef[] = [
   },
 ];
 
-export function SummaryCards({ projectId }: { projectId: string }) {
+export function SummaryCards({ projectId }: { projectId?: string }) {
   const [buckets, setBuckets] = useState<Map<string, DayStats> | null>(null);
 
   useEffect(() => {
     setBuckets(null);
-    Promise.all([fetchEvents(projectId), fetchDocuments(projectId)])
+    Promise.all([fetchEvents(projectId), projectId ? fetchDocuments(projectId) : fetchAllWorklogDocuments()])
       .then(([events, documents]) => setBuckets(buildBuckets(events, documents)))
       .catch(() => setBuckets(new Map()));
   }, [projectId]);

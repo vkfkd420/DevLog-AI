@@ -16,6 +16,7 @@ export interface QuickRegisterResult {
 
 export interface TimelineEvent {
   id: string;
+  projectId: string | null;
   source: string;
   type: string;
   occurredAt: string;

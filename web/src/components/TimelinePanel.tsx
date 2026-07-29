@@ -1,6 +1,11 @@
 import { useEffect, useState } from 'react';
 import { computeCorrelation, fetchEvents, fetchSessions, generateKnowledgeFromEvent } from '../api';
-import type { SessionSummary, TimelineEvent } from '../types';
+import type { Project, SessionSummary, TimelineEvent } from '../types';
+import { colorForProject } from '../projectColors';
+
+interface SessionWithProject extends SessionSummary {
+  projectId: string;
+}
 
 function summarize(event: TimelineEvent): string {
   const payload = event.payload ?? {};
@@ -93,14 +98,15 @@ function EventCard({ event, projectName, knowledgeBusy, knowledgeDone, onCreateK
 }
 
 interface TimelinePanelProps {
-  projectId: string;
-  projectName: string;
+  // projectId를 생략하면(전체 보기) 알고 있는 모든 프로젝트의 세션/이벤트를 시간순으로 합쳐서 보여준다.
+  projectId?: string;
+  projects: Project[];
   onNavigateToConnectors: () => void;
 }
 
-export function TimelinePanel({ projectId, projectName, onNavigateToConnectors }: TimelinePanelProps) {
+export function TimelinePanel({ projectId, projects, onNavigateToConnectors }: TimelinePanelProps) {
   const [events, setEvents] = useState<TimelineEvent[]>([]);
-  const [sessions, setSessions] = useState<SessionSummary[]>([]);
+  const [sessions, setSessions] = useState<SessionWithProject[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [recomputing, setRecomputing] = useState(false);
@@ -108,13 +114,24 @@ export function TimelinePanel({ projectId, projectName, onNavigateToConnectors }
   const [knowledgeBusyIds, setKnowledgeBusyIds] = useState<Set<string>>(new Set());
   const [knowledgeDoneIds, setKnowledgeDoneIds] = useState<Set<string>>(new Set());
 
+  const isCombined = !projectId;
+  const targetProjectIds = projectId ? [projectId] : projects.map((p) => p.id);
+  const sortedProjectIds = [...projects].map((p) => p.id).sort();
+  const projectNameById = new Map(projects.map((p) => [p.id, p.name]));
+
   const load = () => {
     setLoading(true);
     setError(null);
-    return Promise.all([fetchEvents(projectId), fetchSessions(projectId)])
-      .then(([eventData, sessionData]) => {
+    return Promise.all([
+      fetchEvents(projectId),
+      Promise.all(
+        targetProjectIds.map((id) => fetchSessions(id).then((list) => list.map((s) => ({ ...s, projectId: id })))),
+      ),
+    ])
+      .then(([eventData, sessionsPerProject]) => {
         setEvents([...eventData].reverse());
-        setSessions(sessionData);
+        const merged = sessionsPerProject.flat().sort((a, b) => new Date(b.startAt).getTime() - new Date(a.startAt).getTime());
+        setSessions(merged);
       })
       .catch((e) => setError(String(e)))
       .finally(() => setLoading(false));
@@ -123,13 +140,16 @@ export function TimelinePanel({ projectId, projectName, onNavigateToConnectors }
   useEffect(() => {
     setExpanded(new Set());
     load();
-  }, [projectId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId, projects.length]);
 
   const handleRecompute = async () => {
     setRecomputing(true);
     setError(null);
     try {
-      await computeCorrelation(projectId);
+      for (const id of targetProjectIds) {
+        await computeCorrelation(id);
+      }
       await load();
     } catch (e) {
       setError(String(e));
@@ -206,6 +226,15 @@ export function TimelinePanel({ projectId, projectName, onNavigateToConnectors }
                 <div className="session-header-main">
                   <span className="session-number">Session #{session.sessionNumber}</span>
                   <span className="session-time">{formatTimeRange(session.startAt, session.endAt)}</span>
+                  {isCombined && (
+                    <span className="calendar-legend-item">
+                      <span
+                        className="calendar-legend-dot"
+                        style={{ background: colorForProject(session.projectId, sortedProjectIds) }}
+                      />
+                      {projectNameById.get(session.projectId) ?? session.projectId}
+                    </span>
+                  )}
                 </div>
                 <div className="session-title">{session.title}</div>
                 <div className="session-counts">
@@ -221,7 +250,7 @@ export function TimelinePanel({ projectId, projectName, onNavigateToConnectors }
                     <EventCard
                       key={event.id}
                       event={event}
-                      projectName={projectName}
+                      projectName={projectNameById.get(event.projectId ?? '') ?? '알 수 없음'}
                       knowledgeBusy={knowledgeBusyIds.has(event.id)}
                       knowledgeDone={knowledgeDoneIds.has(event.id)}
                       onCreateKnowledge={handleCreateKnowledge}
@@ -242,7 +271,7 @@ export function TimelinePanel({ projectId, projectName, onNavigateToConnectors }
                   <EventCard
                     key={event.id}
                     event={event}
-                    projectName={projectName}
+                    projectName={projectNameById.get(event.projectId ?? '') ?? '알 수 없음'}
                     knowledgeBusy={knowledgeBusyIds.has(event.id)}
                     knowledgeDone={knowledgeDoneIds.has(event.id)}
                     onCreateKnowledge={handleCreateKnowledge}

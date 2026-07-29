@@ -63,7 +63,7 @@ function levelFor(count: number, max: number): number {
   return 1;
 }
 
-export function ActivityHeatmap({ projectId }: { projectId: string }) {
+export function ActivityHeatmap({ projectId }: { projectId?: string }) {
   const [counts, setCounts] = useState<Map<string, number> | null>(null);
 
   useEffect(() => {

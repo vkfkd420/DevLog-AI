@@ -4,6 +4,7 @@ import { fetchProjects } from './api';
 import type { Project } from './types';
 import { TimelinePanel } from './components/TimelinePanel';
 import { DocumentPanel } from './components/DocumentPanel';
+import { AllProjectsWorklogList } from './components/AllProjectsWorklogList';
 import { ConnectorsPanel } from './components/ConnectorsPanel';
 import { ProjectsPanel } from './components/ProjectsPanel';
 import { SummaryCards } from './components/SummaryCards';
@@ -47,6 +48,9 @@ const NAV_ITEMS: { key: Tab; label: string; icon: ReactNode }[] = [
 // 프로젝트 선택 셀렉트가 필요한 탭 (프로젝트에 종속된 데이터를 보여주는 탭)
 const PROJECT_SCOPED_TABS: Tab[] = ['dashboard', 'calendar', 'knowledge', 'search'];
 
+// 대시보드 탭에서만 쓰는 "전체 프로젝트 통합" 보기용 sentinel 값
+const ALL_PROJECTS = '__all__';
+
 export default function App() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string>('');
@@ -66,15 +70,36 @@ export default function App() {
     fetchProjects()
       .then((data) => {
         setProjects(data);
-        setSelectedProjectId((current) =>
-          current && data.some((project) => project.id === current) ? current : data[0]?.id ?? '',
-        );
+        setSelectedProjectId((current) => {
+          if (current && (current === ALL_PROJECTS || data.some((project) => project.id === current))) {
+            return current;
+          }
+          // 프로젝트가 2개 이상이면 대시보드/달력이 기본으로 "전체"를 보여주게 한다.
+          return data.length > 1 ? ALL_PROJECTS : data[0]?.id ?? '';
+        });
       })
       .catch((e) => setError(String(e)));
   }, [tab]);
 
+  const isAllProjects = selectedProjectId === ALL_PROJECTS;
+  // "전체"를 선택하면 각 컴포넌트에는 projectId를 넘기지 않아(undefined) 모든 프로젝트를 합쳐서 조회하게 한다.
+  const effectiveProjectId = isAllProjects ? undefined : selectedProjectId;
+  // Knowledge/Search는 "전체"를 지원하지 않으므로, 전체가 선택돼 있으면 첫 번째 프로젝트로 대체해서 보여준다.
+  const fallbackProjectId = effectiveProjectId ?? projects[0]?.id ?? '';
+
   const projectSelect = PROJECT_SCOPED_TABS.includes(tab) && projects.length > 0 && (
+    <select value={fallbackProjectId} onChange={(e) => setSelectedProjectId(e.target.value)}>
+      {projects.map((project) => (
+        <option key={project.id} value={project.id}>
+          {project.name}
+        </option>
+      ))}
+    </select>
+  );
+
+  const projectSelectWithAll = projects.length > 0 && (
     <select value={selectedProjectId} onChange={(e) => setSelectedProjectId(e.target.value)}>
+      {projects.length > 1 && <option value={ALL_PROJECTS}>전체</option>}
       {projects.map((project) => (
         <option key={project.id} value={project.id}>
           {project.name}
@@ -131,21 +156,21 @@ export default function App() {
           <>
             <header className="page-header">
               <h1>대시보드</h1>
-              {projectSelect}
+              {projectSelectWithAll}
             </header>
             {!error && projects.length === 0 && <p className="empty">등록된 프로젝트가 없습니다.</p>}
             {selectedProjectId && (
               <>
-                <SummaryCards projectId={selectedProjectId} />
-                <ActivityHeatmap projectId={selectedProjectId} />
-                <InsightCards projectId={selectedProjectId} />
+                <SummaryCards projectId={effectiveProjectId} />
+                <ActivityHeatmap projectId={effectiveProjectId} />
+                <InsightCards projectId={effectiveProjectId} />
                 <main className="app-main">
                   <TimelinePanel
-                    projectId={selectedProjectId}
-                    projectName={projects.find((project) => project.id === selectedProjectId)?.name ?? ''}
+                    projectId={effectiveProjectId}
+                    projects={projects}
                     onNavigateToConnectors={() => setTab('connectors')}
                   />
-                  <DocumentPanel projectId={selectedProjectId} />
+                  {isAllProjects ? <AllProjectsWorklogList /> : <DocumentPanel projectId={effectiveProjectId!} />}
                 </main>
               </>
             )}
@@ -156,10 +181,10 @@ export default function App() {
           <>
             <header className="page-header">
               <h1>달력</h1>
-              {projectSelect}
+              {projectSelectWithAll}
             </header>
             {!error && projects.length === 0 && <p className="empty">등록된 프로젝트가 없습니다.</p>}
-            {selectedProjectId && <CalendarPanel projectId={selectedProjectId} />}
+            {selectedProjectId && <CalendarPanel projectId={effectiveProjectId} />}
           </>
         )}
 
@@ -170,7 +195,7 @@ export default function App() {
               {projectSelect}
             </header>
             {!error && projects.length === 0 && <p className="empty">등록된 프로젝트가 없습니다.</p>}
-            {selectedProjectId && <KnowledgePanel projectId={selectedProjectId} />}
+            {fallbackProjectId && <KnowledgePanel projectId={fallbackProjectId} />}
           </>
         )}
 
@@ -181,7 +206,7 @@ export default function App() {
               {projectSelect}
             </header>
             {!error && projects.length === 0 && <p className="empty">등록된 프로젝트가 없습니다.</p>}
-            {selectedProjectId && <SearchPanel projectId={selectedProjectId} />}
+            {fallbackProjectId && <SearchPanel projectId={fallbackProjectId} />}
           </>
         )}
 

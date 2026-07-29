@@ -1,13 +1,10 @@
 import { useEffect, useState } from 'react';
 import { deleteDocument, fetchAllWorklogDocuments, fetchDocument, fetchDocuments, fetchProjects, generateWorklog } from '../api';
 import type { DocumentDetail, DocumentSummary, Project } from '../types';
+import { colorForProject } from '../projectColors';
 import { parseWorklog, WorklogCard } from './WorklogCard';
 
 const WEEKDAY_LABELS = ['일', '월', '화', '수', '목', '금', '토'];
-
-// 프로젝트마다 구분되는 점 색상을 부여하기 위한 팔레트. 앱의 웜톤에 어울리면서도
-// 서로 색상이 뚜렷이 구분되도록 골랐다. 프로젝트가 팔레트보다 많으면 순환한다.
-const PROJECT_COLORS = ['#d97757', '#6b9080', '#6c8ead', '#cf9d3f', '#9b6b9e', '#7d8597'];
 
 function toDateKey(year: number, month: number, day: number): string {
   return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
@@ -35,7 +32,11 @@ function computeStreak(datesWithEntries: Set<string>, todayKey: string): number 
   return streak;
 }
 
-export function CalendarPanel({ projectId }: { projectId: string }) {
+// projectId를 생략하면(전체 보기) 모든 프로젝트의 업무일지를 날짜별로 합쳐서 보여준다 —
+// 다만 생성은 어느 프로젝트 것인지 특정할 수 없으므로 전체 모드에서는 지원하지 않는다.
+export function CalendarPanel({ projectId }: { projectId?: string }) {
+  const isCombined = !projectId;
+
   const [cursor, setCursor] = useState(() => {
     const now = new Date();
     return { year: now.getFullYear(), month: now.getMonth() };
@@ -45,34 +46,50 @@ export function CalendarPanel({ projectId }: { projectId: string }) {
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedDate, setSelectedDate] = useState<string | null>(() => getTodayKey());
   const [selectedDoc, setSelectedDoc] = useState<DocumentDetail | null>(null);
+  const [selectedDetails, setSelectedDetails] = useState<DocumentDetail[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
-  const [deleting, setDeleting] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchProjects().then(setProjects);
-    fetchAllWorklogDocuments().then(setAllDocuments);
   }, []);
 
   useEffect(() => {
     const todayKey = getTodayKey();
     setSelectedDate(todayKey);
     setSelectedDoc(null);
+    setSelectedDetails([]);
     setError(null);
-    fetchDocuments(projectId)
-      .then((docs) => {
-        setDocuments(docs);
-        const todayDoc = docs.find((doc) => doc.periodStart.slice(0, 10) === todayKey);
-        if (todayDoc) {
-          fetchDocument(todayDoc.id).then(setSelectedDoc).catch((e) => setError(String(e)));
-        }
-      })
-      .catch((e) => setError(String(e)));
+
+    fetchAllWorklogDocuments().then(setAllDocuments).catch((e) => setError(String(e)));
+
+    if (projectId) {
+      setDocuments([]);
+      fetchDocuments(projectId)
+        .then((docs) => {
+          setDocuments(docs);
+          const todayDoc = docs.find((doc) => doc.periodStart.slice(0, 10) === todayKey);
+          if (todayDoc) {
+            fetchDocument(todayDoc.id).then(setSelectedDoc).catch((e) => setError(String(e)));
+          }
+        })
+        .catch((e) => setError(String(e)));
+    } else {
+      setDocuments([]);
+      fetchAllWorklogDocuments()
+        .then((docs) => {
+          const todayDocs = docs.filter((d) => d.periodStart.slice(0, 10) === todayKey);
+          if (todayDocs.length > 0) {
+            return Promise.all(todayDocs.map((d) => fetchDocument(d.id))).then(setSelectedDetails);
+          }
+        })
+        .catch((e) => setError(String(e)));
+    }
   }, [projectId]);
 
   // 프로젝트별 색상은 프로젝트 id 정렬 순서로 고정 배정 — 매 렌더마다 같은 프로젝트는 항상 같은 색.
   const sortedProjectIds = [...projects].map((p) => p.id).sort();
-  const colorForProject = (id: string) => PROJECT_COLORS[sortedProjectIds.indexOf(id) % PROJECT_COLORS.length];
   const nameForProject = (id: string) => projects.find((p) => p.id === id)?.name ?? id;
 
   const docsByDate = new Map<string, DocumentSummary[]>();
@@ -84,23 +101,35 @@ export function CalendarPanel({ projectId }: { projectId: string }) {
   }
 
   const docByDate = new Map(documents.map((doc) => [doc.periodStart.slice(0, 10), doc]));
-  const datesWithEntries = new Set(docsByDate.keys());
 
   const handleSelectDate = (dateKey: string) => {
     setSelectedDate(dateKey);
     setError(null);
-    const doc = docByDate.get(dateKey);
-    if (doc) {
-      fetchDocument(doc.id).then(setSelectedDoc).catch((e) => setError(String(e)));
-    } else {
+    if (isCombined) {
       setSelectedDoc(null);
+      const docs = docsByDate.get(dateKey) ?? [];
+      if (docs.length === 0) {
+        setSelectedDetails([]);
+        return;
+      }
+      Promise.all(docs.map((d) => fetchDocument(d.id)))
+        .then(setSelectedDetails)
+        .catch((e) => setError(String(e)));
+    } else {
+      setSelectedDetails([]);
+      const doc = docByDate.get(dateKey);
+      if (doc) {
+        fetchDocument(doc.id).then(setSelectedDoc).catch((e) => setError(String(e)));
+      } else {
+        setSelectedDoc(null);
+      }
     }
   };
 
   const refreshAllDocuments = () => fetchAllWorklogDocuments().then(setAllDocuments);
 
   const handleGenerate = async () => {
-    if (!selectedDate) return;
+    if (!selectedDate || !projectId) return;
     setGenerating(true);
     setError(null);
     try {
@@ -116,23 +145,28 @@ export function CalendarPanel({ projectId }: { projectId: string }) {
     }
   };
 
-  const handleDelete = async () => {
-    if (!selectedDoc) return;
+  const handleDeleteOne = async (doc: DocumentDetail) => {
     if (!window.confirm('이 업무일지를 삭제할까요? 같은 날짜로 다시 생성할 수 있습니다.')) {
       return;
     }
-    setDeleting(true);
+    setDeletingId(doc.id);
     setError(null);
     try {
-      await deleteDocument(selectedDoc.id);
-      setSelectedDoc(null);
-      const fresh = await fetchDocuments(projectId);
-      setDocuments(fresh);
+      await deleteDocument(doc.id);
+      if (isCombined) {
+        setSelectedDetails((prev) => prev.filter((d) => d.id !== doc.id));
+      } else {
+        setSelectedDoc(null);
+      }
+      if (projectId) {
+        const fresh = await fetchDocuments(projectId);
+        setDocuments(fresh);
+      }
       await refreshAllDocuments();
     } catch (e) {
       setError(String(e));
     } finally {
-      setDeleting(false);
+      setDeletingId(null);
     }
   };
 
@@ -148,11 +182,13 @@ export function CalendarPanel({ projectId }: { projectId: string }) {
 
   const worklog = selectedDoc ? parseWorklog(selectedDoc.content) : null;
   const monthPrefix = `${cursor.year}-${String(cursor.month + 1).padStart(2, '0')}`;
-  const monthCount = documents.filter((doc) => doc.periodStart.slice(0, 7) === monthPrefix).length;
-  const streak = computeStreak(datesWithEntries, todayKey);
+  const monthCount = isCombined
+    ? [...docsByDate.keys()].filter((key) => key.startsWith(monthPrefix)).length
+    : documents.filter((doc) => doc.periodStart.slice(0, 7) === monthPrefix).length;
+  const streak = computeStreak(isCombined ? new Set(docsByDate.keys()) : new Set(docByDate.keys()), todayKey);
 
   const otherProjectsToday =
-    selectedDate && !selectedDoc
+    !isCombined && selectedDate && !selectedDoc
       ? [...new Set((docsByDate.get(selectedDate) ?? []).map((d) => d.projectId))].filter((id) => id !== projectId)
       : [];
 
@@ -215,7 +251,7 @@ export function CalendarPanel({ projectId }: { projectId: string }) {
                 {dayProjectIds.length > 0 && (
                   <span className="calendar-dot-row">
                     {dayProjectIds.slice(0, 4).map((pid) => (
-                      <span key={pid} className="calendar-dot" style={{ background: colorForProject(pid) }} />
+                      <span key={pid} className="calendar-dot" style={{ background: colorForProject(pid, sortedProjectIds) }} />
                     ))}
                   </span>
                 )}
@@ -230,7 +266,7 @@ export function CalendarPanel({ projectId }: { projectId: string }) {
               .filter((p) => allDocuments.some((d) => d.projectId === p.id))
               .map((p) => (
                 <span key={p.id} className="calendar-legend-item">
-                  <span className="calendar-legend-dot" style={{ background: colorForProject(p.id) }} />
+                  <span className="calendar-legend-dot" style={{ background: colorForProject(p.id, sortedProjectIds) }} />
                   {p.name}
                 </span>
               ))}
@@ -240,28 +276,69 @@ export function CalendarPanel({ projectId }: { projectId: string }) {
 
       {selectedDate && (
         <section className="panel">
-          <div className="calendar-header">
-            <h2>{selectedDate}</h2>
-            {selectedDoc && (
-              <button className="btn-danger" onClick={handleDelete} disabled={deleting}>
-                {deleting ? '삭제 중...' : '삭제'}
-              </button>
-            )}
-          </div>
+          <h2>{selectedDate}</h2>
           {error && <p className="error">{error}</p>}
-          {worklog ? (
-            <WorklogCard payload={worklog} />
-          ) : selectedDoc ? (
-            <pre>{selectedDoc.content}</pre>
+
+          {isCombined ? (
+            selectedDetails.length === 0 ? (
+              <p className="empty">
+                이 날짜에 등록된 업무일지가 없습니다. 프로젝트를 선택하면 이 날짜의 일지를 생성할 수 있습니다.
+              </p>
+            ) : (
+              selectedDetails.map((doc) => {
+                const detailWorklog = parseWorklog(doc.content);
+                return (
+                  <article key={doc.id} className="document-content">
+                    <div className="document-content-header">
+                      <span className="calendar-legend-item">
+                        <span
+                          className="calendar-legend-dot"
+                          style={{ background: colorForProject(doc.projectId, sortedProjectIds) }}
+                        />
+                        {nameForProject(doc.projectId)}
+                      </span>
+                      <button
+                        className="btn-danger"
+                        onClick={() => handleDeleteOne(doc)}
+                        disabled={deletingId === doc.id}
+                      >
+                        {deletingId === doc.id ? '삭제 중...' : '삭제'}
+                      </button>
+                    </div>
+                    {detailWorklog ? <WorklogCard payload={detailWorklog} /> : <pre>{doc.content}</pre>}
+                  </article>
+                );
+              })
+            )
           ) : (
             <>
-              <p className="empty">이 날짜에 등록된 업무일지가 없습니다.</p>
-              {otherProjectsToday.length > 0 && (
-                <p className="empty">다른 프로젝트 기록: {otherProjectsToday.map(nameForProject).join(', ')}</p>
+              {selectedDoc && (
+                <div className="document-content-header">
+                  <span />
+                  <button
+                    className="btn-danger"
+                    onClick={() => handleDeleteOne(selectedDoc)}
+                    disabled={deletingId === selectedDoc.id}
+                  >
+                    {deletingId === selectedDoc.id ? '삭제 중...' : '삭제'}
+                  </button>
+                </div>
               )}
-              <button onClick={handleGenerate} disabled={generating}>
-                {generating ? '생성 중...' : '이 날짜 일지 생성'}
-              </button>
+              {worklog ? (
+                <WorklogCard payload={worklog} />
+              ) : selectedDoc ? (
+                <pre>{selectedDoc.content}</pre>
+              ) : (
+                <>
+                  <p className="empty">이 날짜에 등록된 업무일지가 없습니다.</p>
+                  {otherProjectsToday.length > 0 && (
+                    <p className="empty">다른 프로젝트 기록: {otherProjectsToday.map(nameForProject).join(', ')}</p>
+                  )}
+                  <button onClick={handleGenerate} disabled={generating}>
+                    {generating ? '생성 중...' : '이 날짜 일지 생성'}
+                  </button>
+                </>
+              )}
             </>
           )}
         </section>

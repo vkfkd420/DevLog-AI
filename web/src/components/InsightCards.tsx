@@ -161,7 +161,7 @@ function buildInsights(events: TimelineEvent[]): Insight[] {
   return insights;
 }
 
-export function InsightCards({ projectId }: { projectId: string }) {
+export function InsightCards({ projectId }: { projectId?: string }) {
   const [insights, setInsights] = useState<Insight[] | null>(null);
 
   useEffect(() => {
