@@ -52,6 +52,7 @@ export class GitCollectorService {
 
     try {
       const currentBranch = (await this.runGit(project.rootPath, ['rev-parse', '--abbrev-ref', 'HEAD'])).trim();
+      const authorFilter = await this.resolveAuthorFilter(project.rootPath, connector.config);
 
       const logArgs = [
         'log',
@@ -59,6 +60,9 @@ export class GitCollectorService {
         '--date=iso-strict',
         `--pretty=format:${RECORD_SEP}%H${FIELD_SEP}%aI${FIELD_SEP}%an${FIELD_SEP}%s`,
       ];
+      if (authorFilter) {
+        logArgs.push(`--author=${this.escapeRegex(authorFilter)}`);
+      }
       if (hasCursor) {
         logArgs.push(`--since=${connector.lastHealthCheckAt!.toISOString()}`);
       } else {
@@ -102,6 +106,31 @@ export class GitCollectorService {
       await this.connectorService.recordSyncResult(connector.id, { success: false, error: message });
       throw new BadRequestException(`Git 동기화에 실패했습니다: ${message}`);
     }
+  }
+
+  /**
+   * 커밋을 수집할 때 "내 커밋"만 걸러내기 위한 필터 값을 정한다.
+   * connector.config.authorEmail을 우선 쓰고, 없으면 그 저장소에 설정된 git 사용자 이메일을
+   * 자동으로 읽어온다 (로컬 설정이 없으면 global 설정을 따라간다 — `git config`의 기본 동작).
+   * 그마저도 없으면 필터 없이 전체 커밋을 수집한다(기존 동작과 동일, 실패시켜서 sync를 막지 않는다).
+   */
+  private async resolveAuthorFilter(rootPath: string, config: Record<string, unknown>): Promise<string | null> {
+    const configured = config?.authorEmail;
+    if (typeof configured === 'string' && configured.trim()) {
+      return configured.trim();
+    }
+    try {
+      const email = (await this.runGit(rootPath, ['config', 'user.email'])).trim();
+      return email || null;
+    } catch {
+      return null;
+    }
+  }
+
+  // git --author는 정규식으로 매칭되므로, 이메일에 흔한 . + 같은 문자가 의도치 않게
+  // 와일드카드로 해석되지 않도록 이스케이프한다.
+  private escapeRegex(value: string): string {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   }
 
   private runGit(cwd: string, args: string[]): Promise<string> {
