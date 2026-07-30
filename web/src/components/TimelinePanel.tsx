@@ -25,9 +25,35 @@ function summarize(event: TimelineEvent): string {
   }
 }
 
+function isToday(date: Date): boolean {
+  const now = new Date();
+  return (
+    date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth() && date.getDate() === now.getDate()
+  );
+}
+
+const TIME_OPTS: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit' };
+const DATE_OPTS: Intl.DateTimeFormatOptions = { month: 'long', day: 'numeric' };
+
+// 오늘 세션은 시간만, 지난 세션은 날짜까지 보여준다. 같은 날 안에서 끝났으면 날짜를 한 번만 붙인다.
+// 커밋 1개짜리 세션처럼 시작=종료 시각이면 "1:54 ~ 1:54"처럼 range를 반복하지 않고 한 번만 보여준다.
 function formatTimeRange(startAt: string, endAt: string): string {
-  const opts: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit' };
-  return `${new Date(startAt).toLocaleTimeString('ko-KR', opts)} ~ ${new Date(endAt).toLocaleTimeString('ko-KR', opts)}`;
+  const start = new Date(startAt);
+  const end = new Date(endAt);
+  const startTime = start.toLocaleTimeString('ko-KR', TIME_OPTS);
+  const endTime = end.toLocaleTimeString('ko-KR', TIME_OPTS);
+
+  if (start.toDateString() === end.toDateString()) {
+    const prefix = isToday(start) ? '' : `${start.toLocaleDateString('ko-KR', DATE_OPTS)} `;
+    if (startTime === endTime) {
+      return `${prefix}${startTime}`;
+    }
+    return `${prefix}${startTime} ~ ${endTime}`;
+  }
+
+  const startLabel = isToday(start) ? startTime : `${start.toLocaleDateString('ko-KR', DATE_OPTS)} ${startTime}`;
+  const endLabel = isToday(end) ? endTime : `${end.toLocaleDateString('ko-KR', DATE_OPTS)} ${endTime}`;
+  return `${startLabel} ~ ${endLabel}`;
 }
 
 interface EventMeta {
@@ -73,6 +99,12 @@ interface EventCardProps {
 
 function EventCard({ event, projectName, knowledgeBusy, knowledgeDone, onCreateKnowledge }: EventCardProps) {
   const meta = getEventMeta(event);
+  const [filesOpen, setFilesOpen] = useState(false);
+  const isCommit = event.source === 'git' && event.type === 'commit';
+  const payload = event.payload ?? {};
+  const files = isCommit && Array.isArray(payload.files) ? (payload.files as string[]) : [];
+  const hash = isCommit && typeof payload.hash === 'string' ? payload.hash : null;
+
   return (
     <li>
       <div className="timeline-row">
@@ -84,6 +116,23 @@ function EventCard({ event, projectName, knowledgeBusy, knowledgeDone, onCreateK
       </div>
       {meta.subtitle && <div className="event-subtitle">{meta.subtitle}</div>}
       <span className="summary">{summarize(event)}</span>
+      {isCommit && (
+        <div className="commit-meta">
+          {hash && <span className="commit-hash">{hash.slice(0, 7)}</span>}
+          {files.length > 0 && (
+            <button className="link commit-files-toggle" onClick={() => setFilesOpen((open) => !open)}>
+              {files.length}개 파일 변경 {filesOpen ? '▲' : '▼'}
+            </button>
+          )}
+        </div>
+      )}
+      {isCommit && filesOpen && (
+        <ul className="commit-file-list">
+          {files.map((file) => (
+            <li key={file}>{file}</li>
+          ))}
+        </ul>
+      )}
       {event.source === 'ai-chat' && (
         <button
           className="btn-secondary knowledge-cta"

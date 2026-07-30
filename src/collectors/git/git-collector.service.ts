@@ -61,7 +61,10 @@ export class GitCollectorService {
         `--pretty=format:${RECORD_SEP}%H${FIELD_SEP}%aI${FIELD_SEP}%an${FIELD_SEP}%s`,
       ];
       if (authorFilter) {
-        logArgs.push(`--author=${this.escapeRegex(authorFilter)}`);
+        // --fixed-strings: --author를 정규식이 아닌 순수 문자열로 매칭한다.
+        // GitHub noreply 이메일(예: 12345+user@users.noreply.github.com)처럼 '+'가 들어간 경우,
+        // git의 기본 정규식(BRE)에서는 '+'가 반복 연산자라 이스케이프 방식에 따라 매칭이 깨지기 쉽다.
+        logArgs.push('--fixed-strings', `--author=${authorFilter}`);
       }
       if (hasCursor) {
         logArgs.push(`--since=${connector.lastHealthCheckAt!.toISOString()}`);
@@ -125,12 +128,6 @@ export class GitCollectorService {
     } catch {
       return null;
     }
-  }
-
-  // git --author는 정규식으로 매칭되므로, 이메일에 흔한 . + 같은 문자가 의도치 않게
-  // 와일드카드로 해석되지 않도록 이스케이프한다.
-  private escapeRegex(value: string): string {
-    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   }
 
   private runGit(cwd: string, args: string[]): Promise<string> {
