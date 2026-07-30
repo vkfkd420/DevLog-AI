@@ -1,4 +1,5 @@
 import type {
+  AutoDraftSetting,
   AutoSyncResult,
   Connector,
   DocumentDetail,
@@ -166,4 +167,17 @@ export function generateKnowledgeFromEvent(eventId: string): Promise<KnowledgeEn
 
 export function search(projectId: string, q: string): Promise<SearchResult> {
   return request<SearchResult>(`/search?projectId=${projectId}&q=${encodeURIComponent(q)}`);
+}
+
+export function fetchAutoDraftSetting(): Promise<AutoDraftSetting> {
+  return request<AutoDraftSetting>('/settings/auto-draft');
+}
+
+export function updateAutoDraftSetting(
+  patch: Partial<Pick<AutoDraftSetting, 'enabled' | 'time' | 'daysOfWeek'>>,
+): Promise<AutoDraftSetting> {
+  return request<AutoDraftSetting>('/settings/auto-draft', {
+    method: 'PATCH',
+    body: JSON.stringify(patch),
+  });
 }

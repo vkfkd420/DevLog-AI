@@ -18,6 +18,20 @@ model Workspace {
   projects  Project[]
 }
 
+// 자동 업무일지 초안 생성 스케줄 설정 — Workspace와 같은 "항상 정확히 1개" 패턴.
+// 사용자가 지정한 요일 + 시각에 활성 프로젝트들의 오늘자 업무일지를 초안으로만 생성한다(확정 X).
+model AutoDraftSetting {
+  id          String   @id @default(cuid())
+  enabled     Boolean  @default(false)
+  // "HH:mm" 24시간제
+  time        String   @default("18:00")
+  // JS Date.getDay() 기준 콤마 구분 (0=일 ~ 6=토), 예: "1,2,3,4,5" = 평일만
+  daysOfWeek  String   @default("0,1,2,3,4,5,6")
+  // 같은 날 중복 실행을 막기 위한 마지막 실행일("YYYY-MM-DD")
+  lastRunDate String?
+  updatedAt   DateTime @updatedAt
+}
+
 model Project {
   id          String    @id @default(cuid())
   workspaceId String

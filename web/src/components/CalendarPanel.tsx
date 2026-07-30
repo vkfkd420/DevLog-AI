@@ -334,7 +334,7 @@ export function CalendarPanel({ projectId }: { projectId?: string }) {
                   {otherProjectsToday.length > 0 && (
                     <p className="empty">다른 프로젝트 기록: {otherProjectsToday.map(nameForProject).join(', ')}</p>
                   )}
-                  <button onClick={handleGenerate} disabled={generating}>
+                  <button className="btn-primary" onClick={handleGenerate} disabled={generating}>
                     {generating ? '생성 중...' : '이 날짜 일지 생성'}
                   </button>
                 </>

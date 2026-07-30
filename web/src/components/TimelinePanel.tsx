@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { computeCorrelation, fetchEvents, fetchSessions, generateKnowledgeFromEvent } from '../api';
 import type { Project, SessionSummary, TimelineEvent } from '../types';
 import { colorForProject } from '../projectColors';
@@ -162,6 +162,17 @@ export function TimelinePanel({ projectId, projects, onNavigateToConnectors }: T
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [knowledgeBusyIds, setKnowledgeBusyIds] = useState<Set<string>>(new Set());
   const [knowledgeDoneIds, setKnowledgeDoneIds] = useState<Set<string>>(new Set());
+  const [pickingMonth, setPickingMonth] = useState(false);
+  const monthPickerRef = useRef<HTMLDivElement>(null);
+  const SESSIONS_PAGE_SIZE = 10;
+  const [visibleCount, setVisibleCount] = useState(SESSIONS_PAGE_SIZE);
+  const [monthCursor, setMonthCursor] = useState(() => {
+    const now = new Date();
+    return { year: now.getFullYear(), month: now.getMonth() };
+  });
+  // 사용자가 이전/다음으로 직접 달을 옮기기 전까지는, 데이터가 로드될 때마다
+  // 최근 활동이 있는 달로 자동으로 맞춰준다 (이번 달에 아무 기록이 없어서 텅 빈 화면을 보는 것을 방지).
+  const userNavigatedMonth = useRef(false);
 
   const isCombined = !projectId;
   const targetProjectIds = projectId ? [projectId] : projects.map((p) => p.id);
@@ -181,6 +192,10 @@ export function TimelinePanel({ projectId, projects, onNavigateToConnectors }: T
         setEvents([...eventData].reverse());
         const merged = sessionsPerProject.flat().sort((a, b) => new Date(b.startAt).getTime() - new Date(a.startAt).getTime());
         setSessions(merged);
+        if (!userNavigatedMonth.current && merged.length > 0) {
+          const latest = new Date(merged[0].startAt);
+          setMonthCursor({ year: latest.getFullYear(), month: latest.getMonth() });
+        }
       })
       .catch((e) => setError(String(e)))
       .finally(() => setLoading(false));
@@ -188,9 +203,62 @@ export function TimelinePanel({ projectId, projects, onNavigateToConnectors }: T
 
   useEffect(() => {
     setExpanded(new Set());
+    setPickingMonth(false);
+    setVisibleCount(SESSIONS_PAGE_SIZE);
+    userNavigatedMonth.current = false;
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId, projects.length]);
+
+  // 연/월 picker가 열려있을 때 바깥을 클릭하면 선택 안 해도 그냥 닫히게 한다.
+  useEffect(() => {
+    if (!pickingMonth) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (monthPickerRef.current && !monthPickerRef.current.contains(e.target as Node)) {
+        setPickingMonth(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [pickingMonth]);
+
+  const shiftMonth = (delta: number) => {
+    userNavigatedMonth.current = true;
+    setVisibleCount(SESSIONS_PAGE_SIZE);
+    setMonthCursor((c) => {
+      const total = c.year * 12 + c.month + delta;
+      return { year: Math.floor(total / 12), month: ((total % 12) + 12) % 12 };
+    });
+  };
+
+  const jumpToYear = (year: number) => {
+    userNavigatedMonth.current = true;
+    setVisibleCount(SESSIONS_PAGE_SIZE);
+    setMonthCursor((c) => ({ ...c, year }));
+  };
+
+  const jumpToMonth = (month: number) => {
+    userNavigatedMonth.current = true;
+    setVisibleCount(SESSIONS_PAGE_SIZE);
+    setMonthCursor((c) => ({ ...c, month }));
+    setPickingMonth(false);
+  };
+
+  const inSelectedMonth = (dateStr: string) => {
+    const d = new Date(dateStr);
+    return d.getFullYear() === monthCursor.year && d.getMonth() === monthCursor.month;
+  };
+
+  const monthSessions = sessions.filter((s) => inSelectedMonth(s.startAt));
+
+  // 멀리 있는 날짜로 한 번에 점프할 수 있도록, 실제 활동 기록이 있는 연도 범위로 선택지를 만든다.
+  const sessionYears = sessions.map((s) => new Date(s.startAt).getFullYear());
+  const yearRangeMax = Math.max(monthCursor.year, new Date().getFullYear(), ...sessionYears);
+  const yearRangeMin = sessionYears.length > 0 ? Math.min(monthCursor.year, ...sessionYears) : monthCursor.year;
+  const yearOptions: number[] = [];
+  for (let y = yearRangeMax; y >= yearRangeMin; y--) {
+    yearOptions.push(y);
+  }
 
   const handleRecompute = async () => {
     setRecomputing(true);
@@ -220,7 +288,7 @@ export function TimelinePanel({ projectId, projects, onNavigateToConnectors }: T
   };
 
   const eventsBySession = (sessionId: string) => events.filter((event) => event.sessionId === sessionId);
-  const unclustered = events.filter((event) => !event.sessionId);
+  const unclustered = events.filter((event) => !event.sessionId && inSelectedMonth(event.occurredAt));
 
   const handleCreateKnowledge = async (eventId: string) => {
     setKnowledgeBusyIds((prev) => new Set(prev).add(eventId));
@@ -269,12 +337,49 @@ export function TimelinePanel({ projectId, projects, onNavigateToConnectors }: T
         </div>
       ) : (
         <>
-          {sessions.map((session) => (
+          <div className="calendar-header timeline-month-nav">
+            <button className="btn-secondary" onClick={() => shiftMonth(-1)}>
+              이전
+            </button>
+            {pickingMonth ? (
+              <div className="timeline-month-picker" ref={monthPickerRef}>
+                <select value={monthCursor.year} onChange={(e) => jumpToYear(Number(e.target.value))}>
+                  {yearOptions.map((y) => (
+                    <option key={y} value={y}>
+                      {y}년
+                    </option>
+                  ))}
+                </select>
+                <select value={monthCursor.month} onChange={(e) => jumpToMonth(Number(e.target.value))}>
+                  {Array.from({ length: 12 }, (_, i) => (
+                    <option key={i} value={i}>
+                      {i + 1}월
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : (
+              <h2 className="timeline-month-label" onClick={() => setPickingMonth(true)}>
+                {monthCursor.year}년 {monthCursor.month + 1}월
+              </h2>
+            )}
+            <button className="btn-secondary" onClick={() => shiftMonth(1)}>
+              다음
+            </button>
+          </div>
+
+          {monthSessions.length === 0 && unclustered.length === 0 && (
+            <p className="empty">이 달에는 활동 기록이 없습니다.</p>
+          )}
+
+          {monthSessions.slice(0, visibleCount).map((session) => (
             <div key={session.id} className="session-card">
               <button className="session-header" onClick={() => toggleSession(session.id)}>
                 <div className="session-header-main">
                   <span className="session-number">Session #{session.sessionNumber}</span>
                   <span className="session-time">{formatTimeRange(session.startAt, session.endAt)}</span>
+                </div>
+                <div className="session-title-row">
                   {isCombined && (
                     <span className="calendar-legend-item">
                       <span
@@ -284,8 +389,8 @@ export function TimelinePanel({ projectId, projects, onNavigateToConnectors }: T
                       {projectNameById.get(session.projectId) ?? session.projectId}
                     </span>
                   )}
+                  <div className="session-title">{session.title}</div>
                 </div>
-                <div className="session-title">{session.title}</div>
                 <div className="session-counts">
                   <span>{session.eventCount} Events</span>
                   <span>{session.commitCount} Commits</span>
@@ -309,6 +414,15 @@ export function TimelinePanel({ projectId, projects, onNavigateToConnectors }: T
               )}
             </div>
           ))}
+
+          {visibleCount < monthSessions.length && (
+            <button
+              className="btn-secondary timeline-load-more"
+              onClick={() => setVisibleCount((c) => c + SESSIONS_PAGE_SIZE)}
+            >
+              더 보기 ({monthSessions.length - visibleCount}개 더)
+            </button>
+          )}
 
           {unclustered.length > 0 && (
             <div className="session-card">

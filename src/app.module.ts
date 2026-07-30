@@ -16,6 +16,7 @@ import { KnowledgeModule } from './knowledge/knowledge.module';
 import { SearchModule } from './search/search.module';
 import { AutoSyncModule } from './scheduler/auto-sync.module';
 import { QuickRegisterModule } from './onboarding/quick-register.module';
+import { SettingsModule } from './settings/settings.module';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { QuickRegisterModule } from './onboarding/quick-register.module';
     SearchModule,
     AutoSyncModule,
     QuickRegisterModule,
+    SettingsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -14,6 +14,7 @@ import { ProjectStats } from './components/ProjectStats';
 import { KnowledgePanel } from './components/KnowledgePanel';
 import { SearchPanel } from './components/SearchPanel';
 import { CalendarPanel } from './components/CalendarPanel';
+import { SettingsPanel } from './components/SettingsPanel';
 import {
   CalendarIcon,
   CloseIcon,
@@ -24,10 +25,11 @@ import {
   MoonIcon,
   ProjectIcon,
   SearchIcon,
+  SettingsIcon,
   SunIcon,
 } from './icons';
 
-type Tab = 'dashboard' | 'connectors' | 'projects' | 'knowledge' | 'search' | 'calendar';
+type Tab = 'dashboard' | 'connectors' | 'projects' | 'knowledge' | 'search' | 'calendar' | 'settings';
 type Theme = 'dark' | 'light';
 
 const THEME_KEY = 'devlog-ai-theme';
@@ -145,6 +147,18 @@ export default function App() {
           {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
           <span>{theme === 'dark' ? '라이트 모드' : '다크 모드'}</span>
         </button>
+        <nav className="side-nav side-nav-bottom">
+          <button
+            className={tab === 'settings' ? 'active' : ''}
+            onClick={() => {
+              setTab('settings');
+              setSidebarOpen(false);
+            }}
+          >
+            <SettingsIcon />
+            <span>설정</span>
+          </button>
+        </nav>
       </aside>
 
       <div className="content">
@@ -226,6 +240,15 @@ export default function App() {
             </header>
             <ProjectsPanel />
             <ProjectStats />
+          </>
+        )}
+
+        {tab === 'settings' && (
+          <>
+            <header className="page-header">
+              <h1>설정</h1>
+            </header>
+            <SettingsPanel />
           </>
         )}
       </div>

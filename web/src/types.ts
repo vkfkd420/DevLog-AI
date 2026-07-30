@@ -5,6 +5,17 @@ export interface Project {
   archivedAt: string | null;
 }
 
+export interface AutoDraftSetting {
+  id: string;
+  enabled: boolean;
+  // "HH:mm" 24시간제
+  time: string;
+  // JS Date.getDay() 기준 콤마 구분 (0=일 ~ 6=토)
+  daysOfWeek: string;
+  lastRunDate: string | null;
+  updatedAt: string;
+}
+
 export interface QuickRegisterResult {
   project: Project;
   connectorId: string;
