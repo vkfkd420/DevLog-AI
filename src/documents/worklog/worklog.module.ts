@@ -9,6 +9,6 @@ import { WorklogContextBuilder } from './worklog-context.builder';
   imports: [DocumentModule, LlmModule],
   controllers: [WorklogController],
   providers: [WorklogGeneratorService, WorklogContextBuilder],
-  exports: [WorklogGeneratorService],
+  exports: [WorklogGeneratorService, WorklogContextBuilder],
 })
 export class WorklogModule {}

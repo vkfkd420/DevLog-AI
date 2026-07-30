@@ -19,8 +19,15 @@ export class DocumentService {
     periodStart: Date;
     periodEnd: Date;
   }): Promise<Document> {
+    // periodEnd까지 같이 매칭해야 한다 — 업무일지는 periodStart가 하루를 유일하게 정하지만,
+    // 보고서처럼 기간 길이가 다양한 타입은 같은 시작일이라도 끝나는 날이 다르면 별개의 문서다.
     const existing = await this.prisma.document.findFirst({
-      where: { projectId: params.projectId, type: params.type, periodStart: params.periodStart },
+      where: {
+        projectId: params.projectId,
+        type: params.type,
+        periodStart: params.periodStart,
+        periodEnd: params.periodEnd,
+      },
     });
 
     if (existing) {

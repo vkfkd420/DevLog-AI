@@ -37,6 +37,15 @@ export function ProjectIcon() {
   );
 }
 
+export function ReportIcon() {
+  return (
+    <svg {...common}>
+      <path d="M7 3h7l4 4v14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z" />
+      <path d="M14 3v4h4M9 13h6M9 17h6M9 9h2" />
+    </svg>
+  );
+}
+
 export function SunIcon() {
   return (
     <svg {...common}>

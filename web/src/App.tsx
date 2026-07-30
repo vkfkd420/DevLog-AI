@@ -15,6 +15,7 @@ import { KnowledgePanel } from './components/KnowledgePanel';
 import { SearchPanel } from './components/SearchPanel';
 import { CalendarPanel } from './components/CalendarPanel';
 import { SettingsPanel } from './components/SettingsPanel';
+import { ReportPanel } from './components/ReportPanel';
 import {
   CalendarIcon,
   CloseIcon,
@@ -24,12 +25,13 @@ import {
   MenuIcon,
   MoonIcon,
   ProjectIcon,
+  ReportIcon,
   SearchIcon,
   SettingsIcon,
   SunIcon,
 } from './icons';
 
-type Tab = 'dashboard' | 'connectors' | 'projects' | 'knowledge' | 'search' | 'calendar' | 'settings';
+type Tab = 'dashboard' | 'connectors' | 'projects' | 'knowledge' | 'search' | 'calendar' | 'settings' | 'report';
 type Theme = 'dark' | 'light';
 
 const THEME_KEY = 'devlog-ai-theme';
@@ -43,6 +45,7 @@ const NAV_ITEMS: { key: Tab; label: string; icon: ReactNode }[] = [
   { key: 'calendar', label: '달력', icon: <CalendarIcon /> },
   { key: 'knowledge', label: 'Knowledge', icon: <KnowledgeIcon /> },
   { key: 'search', label: 'Search', icon: <SearchIcon /> },
+  { key: 'report', label: '보고서', icon: <ReportIcon /> },
   { key: 'connectors', label: '커넥터', icon: <ConnectorIcon /> },
   { key: 'projects', label: '프로젝트', icon: <ProjectIcon /> },
 ];
@@ -221,6 +224,15 @@ export default function App() {
             </header>
             {!error && projects.length === 0 && <p className="empty">등록된 프로젝트가 없습니다.</p>}
             {fallbackProjectId && <SearchPanel projectId={fallbackProjectId} />}
+          </>
+        )}
+
+        {tab === 'report' && (
+          <>
+            <header className="page-header">
+              <h1>보고서</h1>
+            </header>
+            <ReportPanel />
           </>
         )}
 

@@ -882,6 +882,90 @@ textarea {
   cursor: pointer;
 }
 
+/* ---------- Report ---------- */
+
+.report-presets {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.report-group-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: inherit;
+  text-align: left;
+}
+
+.report-group-period {
+  font-weight: 600;
+  font-size: 13.5px;
+  flex-shrink: 0;
+}
+
+.report-group-projects {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-muted);
+  font-size: 12px;
+  flex: 1;
+  min-width: 0;
+}
+
+.report-group-delete {
+  margin-left: auto;
+}
+
+.report-group-toggle {
+  color: var(--text-muted);
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.report-group-body {
+  padding: 0 14px 14px;
+}
+
+.report-project-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.report-project-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12.5px;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease, opacity 0.12s ease;
+  opacity: 0.55;
+}
+
+.report-project-chip:hover {
+  background: var(--surface-hover);
+  opacity: 0.8;
+}
+
+.report-project-chip-active {
+  border-color: var(--accent);
+  color: var(--text-primary);
+  opacity: 1;
+}
+
 /* ---------- Settings ---------- */
 
 .settings-card {

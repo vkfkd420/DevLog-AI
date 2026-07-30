@@ -35,11 +35,17 @@ export function parseWorklog(content: string | null): WorklogPayload | null {
   }
 }
 
-export function WorklogCard({ payload }: { payload: WorklogPayload }) {
+// daily(기본)는 업무일지 카드, report는 기간 보고서 카드 — 구조는 같고 라벨만 기간에 맞게 바뀐다.
+export function WorklogCard({ payload, variant = 'daily' }: { payload: WorklogPayload; variant?: 'daily' | 'report' }) {
+  const labels =
+    variant === 'report'
+      ? { activity: '기간 활동', summary: '기간 요약', tomorrow: '다음 계획' }
+      : { activity: '오늘 작업', summary: '오늘 한 일 요약', tomorrow: '내일 해야할 일' };
+
   return (
     <div className="worklog-card">
       <div className="knowledge-section">
-        <div className="knowledge-section-label">오늘 작업</div>
+        <div className="knowledge-section-label">{labels.activity}</div>
         <ul className="knowledge-related-list">
           <li>✅ Git {payload.commits} Commit</li>
           <li>✅ IDE {payload.files} Files</li>
@@ -49,7 +55,7 @@ export function WorklogCard({ payload }: { payload: WorklogPayload }) {
       </div>
       <div className="worklog-divider" />
       <div className="knowledge-section">
-        <div className="knowledge-section-label">오늘 한 일 요약</div>
+        <div className="knowledge-section-label">{labels.summary}</div>
         <p>{payload.summary || '요약할 활동 기록이 없습니다.'}</p>
       </div>
       <div className="worklog-divider" />
@@ -59,7 +65,7 @@ export function WorklogCard({ payload }: { payload: WorklogPayload }) {
       </div>
       <div className="worklog-divider" />
       <div className="knowledge-section">
-        <div className="knowledge-section-label">내일 해야할 일</div>
+        <div className="knowledge-section-label">{labels.tomorrow}</div>
         <p>{payload.tomorrow || '제안된 작업이 없습니다.'}</p>
       </div>
       <div className="worklog-divider" />

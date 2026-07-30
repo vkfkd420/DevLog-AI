@@ -5,6 +5,7 @@ import type {
   DocumentDetail,
   DocumentSummary,
   DocumentVersionInfo,
+  GenerateReportResult,
   GenerateWorklogResult,
   KnowledgeEntryDetail,
   KnowledgeEntrySummary,
@@ -100,6 +101,22 @@ export function generateWorklog(projectId: string, date: string): Promise<Genera
     method: 'POST',
     body: JSON.stringify({ projectId, date }),
   });
+}
+
+export function generateReport(
+  projectId: string,
+  periodStart: string,
+  periodEnd: string,
+): Promise<GenerateReportResult> {
+  return request<GenerateReportResult>('/documents/report', {
+    method: 'POST',
+    body: JSON.stringify({ projectId, periodStart, periodEnd }),
+  });
+}
+
+// 프로젝트 필터 없이 모든 프로젝트의 기간 보고서를 가져온다 (보고서 탭의 "등록된 보고서" 목록용).
+export function fetchAllReports(): Promise<DocumentSummary[]> {
+  return request<DocumentSummary[]>('/documents?type=report');
 }
 
 export function fetchPlugins(): Promise<Plugin[]> {

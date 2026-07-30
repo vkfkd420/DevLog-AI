@@ -69,6 +69,13 @@ export interface GenerateWorklogResult {
   sessionCount: number;
 }
 
+export interface GenerateReportResult {
+  documentId: string;
+  content: string;
+  eventCount: number;
+  sessionCount: number;
+}
+
 export interface Plugin {
   key: string;
   name: string;
