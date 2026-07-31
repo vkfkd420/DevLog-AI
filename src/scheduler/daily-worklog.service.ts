@@ -1,11 +1,18 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
+import { PrismaService } from '../prisma/prisma.service';
 import { SettingsService } from '../settings/settings.service';
 import { ProjectService } from '../projects/project.service';
 import { WorklogGeneratorService } from '../documents/worklog/worklog-generator.service';
 
 function todayKey(date: Date): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+function startOfDay(date: Date): Date {
+  const copy = new Date(date);
+  copy.setHours(0, 0, 0, 0);
+  return copy;
 }
 
 // 사용자가 설정 탭에서 지정한 요일 + 시각에, 활성 프로젝트마다 오늘자 업무일지를
@@ -16,6 +23,7 @@ export class DailyWorklogService {
   private readonly logger = new Logger(DailyWorklogService.name);
 
   constructor(
+    private readonly prisma: PrismaService,
     private readonly settingsService: SettingsService,
     private readonly projectService: ProjectService,
     private readonly worklogGeneratorService: WorklogGeneratorService,
@@ -44,10 +52,27 @@ export class DailyWorklogService {
       return;
     }
 
+    const todayStart = startOfDay(now);
+    const todayEnd = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
+
     const projects = await this.projectService.list({});
+    let generatedCount = 0;
     for (const project of projects) {
+      const commitsToday = await this.prisma.event.count({
+        where: {
+          projectId: project.id,
+          source: 'git',
+          type: 'commit',
+          occurredAt: { gte: todayStart, lt: todayEnd },
+        },
+      });
+      if (commitsToday === 0) {
+        continue;
+      }
+
       try {
         await this.worklogGeneratorService.generate(project.id, dateKey);
+        generatedCount += 1;
       } catch (error) {
         // 이미 확정된 문서면 재생성이 막히는 게 정상 동작 — 로그만 남기고 다음 프로젝트로 진행한다.
         const message = error instanceof Error ? error.message : String(error);
@@ -56,6 +81,6 @@ export class DailyWorklogService {
     }
 
     await this.settingsService.markRun(dateKey);
-    this.logger.log(`자동 업무일지 초안 생성 완료 (${dateKey}, 프로젝트 ${projects.length}개)`);
+    this.logger.log(`자동 업무일지 초안 생성 완료 (${dateKey}, 오늘 커밋된 프로젝트 ${generatedCount}/${projects.length}개)`);
   }
 }

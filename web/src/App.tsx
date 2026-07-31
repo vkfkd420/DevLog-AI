@@ -17,6 +17,7 @@ import { SearchPanel } from './components/SearchPanel';
 import { CalendarPanel } from './components/CalendarPanel';
 import { SettingsPanel } from './components/SettingsPanel';
 import { ReportPanel } from './components/ReportPanel';
+import { useMonthNav } from './useMonthNav';
 import {
   CalendarIcon,
   CloseIcon,
@@ -64,6 +65,8 @@ export default function App() {
   const [tab, setTab] = useState<Tab>('dashboard');
   const [theme, setTheme] = useState<Theme>(getInitialTheme);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  // Timeline과 업무일지(전체) 목록이 같은 달을 보도록 월 이동 상태를 여기서 공유한다.
+  const monthNav = useMonthNav();
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -92,6 +95,12 @@ export default function App() {
   const effectiveProjectId = isAllProjects ? undefined : selectedProjectId;
   // Knowledge/Search는 "전체"를 지원하지 않으므로, 전체가 선택돼 있으면 첫 번째 프로젝트로 대체해서 보여준다.
   const fallbackProjectId = effectiveProjectId ?? projects[0]?.id ?? '';
+
+  // 프로젝트 선택이 바뀌면(예: "전체" ↔ 특정 프로젝트) Timeline/업무일지가 보던 달을 초기화한다.
+  useEffect(() => {
+    monthNav.reset();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedProjectId]);
 
   const projectSelect = PROJECT_SCOPED_TABS.includes(tab) && projects.length > 0 && (
     <select value={fallbackProjectId} onChange={(e) => setSelectedProjectId(e.target.value)}>
@@ -188,8 +197,19 @@ export default function App() {
                     projectId={effectiveProjectId}
                     projects={projects}
                     onNavigateToConnectors={() => setTab('connectors')}
+                    monthCursor={monthNav.monthCursor}
+                    pickingMonth={monthNav.pickingMonth}
+                    setPickingMonth={monthNav.setPickingMonth}
+                    shiftMonth={monthNav.shiftMonth}
+                    jumpToYear={monthNav.jumpToYear}
+                    jumpToMonth={monthNav.jumpToMonth}
+                    autoJumpToLatest={monthNav.autoJumpToLatest}
                   />
-                  {isAllProjects ? <AllProjectsWorklogList /> : <DocumentPanel projectId={effectiveProjectId!} />}
+                  {isAllProjects ? (
+                    <AllProjectsWorklogList monthCursor={monthNav.monthCursor} />
+                  ) : (
+                    <DocumentPanel projectId={effectiveProjectId!} />
+                  )}
                 </main>
               </>
             )}

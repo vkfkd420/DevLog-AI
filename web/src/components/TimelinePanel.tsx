@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { computeCorrelation, fetchEvents, fetchSessions, generateKnowledgeFromEvent } from '../api';
 import type { Project, SessionSummary, TimelineEvent } from '../types';
 import { colorForProject } from '../projectColors';
+import type { MonthCursor } from '../useMonthNav';
 
 interface SessionWithProject extends SessionSummary {
   projectId: string;
@@ -151,9 +152,28 @@ interface TimelinePanelProps {
   projectId?: string;
   projects: Project[];
   onNavigateToConnectors: () => void;
+  // 월 이동 상태는 부모(App)가 소유한다 — 업무일지(전체) 목록과 같은 달을 보게 하기 위함(useMonthNav 참고).
+  monthCursor: MonthCursor;
+  pickingMonth: boolean;
+  setPickingMonth: (v: boolean) => void;
+  shiftMonth: (delta: number) => void;
+  jumpToYear: (year: number) => void;
+  jumpToMonth: (month: number) => void;
+  autoJumpToLatest: (dateStr: string | undefined) => void;
 }
 
-export function TimelinePanel({ projectId, projects, onNavigateToConnectors }: TimelinePanelProps) {
+export function TimelinePanel({
+  projectId,
+  projects,
+  onNavigateToConnectors,
+  monthCursor,
+  pickingMonth,
+  setPickingMonth,
+  shiftMonth,
+  jumpToYear,
+  jumpToMonth,
+  autoJumpToLatest,
+}: TimelinePanelProps) {
   const [events, setEvents] = useState<TimelineEvent[]>([]);
   const [sessions, setSessions] = useState<SessionWithProject[]>([]);
   const [loading, setLoading] = useState(true);
@@ -162,17 +182,9 @@ export function TimelinePanel({ projectId, projects, onNavigateToConnectors }: T
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [knowledgeBusyIds, setKnowledgeBusyIds] = useState<Set<string>>(new Set());
   const [knowledgeDoneIds, setKnowledgeDoneIds] = useState<Set<string>>(new Set());
-  const [pickingMonth, setPickingMonth] = useState(false);
   const monthPickerRef = useRef<HTMLDivElement>(null);
   const SESSIONS_PAGE_SIZE = 10;
   const [visibleCount, setVisibleCount] = useState(SESSIONS_PAGE_SIZE);
-  const [monthCursor, setMonthCursor] = useState(() => {
-    const now = new Date();
-    return { year: now.getFullYear(), month: now.getMonth() };
-  });
-  // 사용자가 이전/다음으로 직접 달을 옮기기 전까지는, 데이터가 로드될 때마다
-  // 최근 활동이 있는 달로 자동으로 맞춰준다 (이번 달에 아무 기록이 없어서 텅 빈 화면을 보는 것을 방지).
-  const userNavigatedMonth = useRef(false);
 
   const isCombined = !projectId;
   const targetProjectIds = projectId ? [projectId] : projects.map((p) => p.id);
@@ -192,10 +204,7 @@ export function TimelinePanel({ projectId, projects, onNavigateToConnectors }: T
         setEvents([...eventData].reverse());
         const merged = sessionsPerProject.flat().sort((a, b) => new Date(b.startAt).getTime() - new Date(a.startAt).getTime());
         setSessions(merged);
-        if (!userNavigatedMonth.current && merged.length > 0) {
-          const latest = new Date(merged[0].startAt);
-          setMonthCursor({ year: latest.getFullYear(), month: latest.getMonth() });
-        }
+        autoJumpToLatest(merged[0]?.startAt);
       })
       .catch((e) => setError(String(e)))
       .finally(() => setLoading(false));
@@ -203,12 +212,15 @@ export function TimelinePanel({ projectId, projects, onNavigateToConnectors }: T
 
   useEffect(() => {
     setExpanded(new Set());
-    setPickingMonth(false);
     setVisibleCount(SESSIONS_PAGE_SIZE);
-    userNavigatedMonth.current = false;
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId, projects.length]);
+
+  // 월이 바뀌면(공유 상태이므로 업무일지 목록 쪽 이동으로도 바뀔 수 있다) 더보기 페이지도 초기화한다.
+  useEffect(() => {
+    setVisibleCount(SESSIONS_PAGE_SIZE);
+  }, [monthCursor.year, monthCursor.month]);
 
   // 연/월 picker가 열려있을 때 바깥을 클릭하면 선택 안 해도 그냥 닫히게 한다.
   useEffect(() => {
@@ -220,29 +232,7 @@ export function TimelinePanel({ projectId, projects, onNavigateToConnectors }: T
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [pickingMonth]);
-
-  const shiftMonth = (delta: number) => {
-    userNavigatedMonth.current = true;
-    setVisibleCount(SESSIONS_PAGE_SIZE);
-    setMonthCursor((c) => {
-      const total = c.year * 12 + c.month + delta;
-      return { year: Math.floor(total / 12), month: ((total % 12) + 12) % 12 };
-    });
-  };
-
-  const jumpToYear = (year: number) => {
-    userNavigatedMonth.current = true;
-    setVisibleCount(SESSIONS_PAGE_SIZE);
-    setMonthCursor((c) => ({ ...c, year }));
-  };
-
-  const jumpToMonth = (month: number) => {
-    userNavigatedMonth.current = true;
-    setVisibleCount(SESSIONS_PAGE_SIZE);
-    setMonthCursor((c) => ({ ...c, month }));
-    setPickingMonth(false);
-  };
+  }, [pickingMonth, setPickingMonth]);
 
   const inSelectedMonth = (dateStr: string) => {
     const d = new Date(dateStr);
