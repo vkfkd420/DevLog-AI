@@ -325,6 +325,85 @@ textarea {
   font-size: 13px;
 }
 
+/* ---------- Custom project select (dropdown) ---------- */
+
+.project-select {
+  position: relative;
+}
+
+.project-select-trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text-primary);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.project-select-trigger:hover {
+  background: var(--surface-hover);
+}
+
+.project-select-trigger svg {
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.project-select-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.project-select-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 20;
+  min-width: 180px;
+  padding: 6px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.project-select-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 10px;
+  border-radius: var(--radius-sm);
+  border: none;
+  background: none;
+  color: var(--text-primary);
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.project-select-option:hover {
+  background: var(--surface-hover);
+}
+
+.project-select-option.active {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.project-select-option svg {
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
 .banner-error {
   background: var(--danger-bg);
   color: var(--danger-text);

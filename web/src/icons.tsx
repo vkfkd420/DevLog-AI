@@ -114,3 +114,19 @@ export function CloseIcon() {
     </svg>
   );
 }
+
+export function ChevronDownIcon() {
+  return (
+    <svg {...common} width={14} height={14}>
+      <path d="m6 9 6 6 6-6" />
+    </svg>
+  );
+}
+
+export function CheckIcon() {
+  return (
+    <svg {...common} width={14} height={14}>
+      <path d="M20 6 9 17l-5-5" />
+    </svg>
+  );
+}

@@ -17,6 +17,7 @@ import { SearchPanel } from './components/SearchPanel';
 import { CalendarPanel } from './components/CalendarPanel';
 import { SettingsPanel } from './components/SettingsPanel';
 import { ReportPanel } from './components/ReportPanel';
+import { ProjectSelect } from './components/ProjectSelect';
 import { useMonthNav } from './useMonthNav';
 import {
   CalendarIcon,
@@ -103,24 +104,16 @@ export default function App() {
   }, [selectedProjectId]);
 
   const projectSelect = PROJECT_SCOPED_TABS.includes(tab) && projects.length > 0 && (
-    <select value={fallbackProjectId} onChange={(e) => setSelectedProjectId(e.target.value)}>
-      {projects.map((project) => (
-        <option key={project.id} value={project.id}>
-          {project.name}
-        </option>
-      ))}
-    </select>
+    <ProjectSelect projects={projects} value={fallbackProjectId} onChange={setSelectedProjectId} />
   );
 
   const projectSelectWithAll = projects.length > 0 && (
-    <select value={selectedProjectId} onChange={(e) => setSelectedProjectId(e.target.value)}>
-      {projects.length > 1 && <option value={ALL_PROJECTS}>전체</option>}
-      {projects.map((project) => (
-        <option key={project.id} value={project.id}>
-          {project.name}
-        </option>
-      ))}
-    </select>
+    <ProjectSelect
+      projects={projects}
+      value={selectedProjectId}
+      onChange={setSelectedProjectId}
+      allValue={projects.length > 1 ? ALL_PROJECTS : undefined}
+    />
   );
 
   return (
