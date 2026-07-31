@@ -130,6 +130,30 @@ export interface KnowledgeEntryDetail extends KnowledgeEntrySummary {
   worklogs: { id: string; periodStart: string }[];
 }
 
+export interface Todo {
+  id: string;
+  projectId: string;
+  title: string;
+  priority: 'high' | 'normal' | 'low';
+  dueDate: string | null;
+  completed: boolean;
+  completedAt: string | null;
+  source: 'manual' | 'ai_suggested';
+  createdAt: string;
+  sessionId: string | null;
+  eventId: string | null;
+  documentId: string | null;
+}
+
+export interface TodoRecommendation {
+  key: string;
+  type: 'resume_session' | 'pending_todo' | 'draft_worklog';
+  message: string;
+  projectId: string;
+  sessionId?: string;
+  documentId?: string;
+}
+
 export interface SearchResult {
   commits: { id: string; message: string; occurredAt: string }[];
   aiChats: { id: string; question: string; occurredAt: string }[];

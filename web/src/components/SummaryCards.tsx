@@ -3,16 +3,15 @@ import { fetchAllWorklogDocuments, fetchDocuments, fetchEvents } from '../api';
 import type { DocumentSummary, TimelineEvent } from '../types';
 
 interface DayStats {
-  workMs: number;
   files: Set<string>;
   commits: number;
-  aiQuestions: number;
+  sessionIds: Set<string>;
   errors: number;
   worklogs: number;
 }
 
 function emptyDayStats(): DayStats {
-  return { workMs: 0, files: new Set(), commits: 0, aiQuestions: 0, errors: 0, worklogs: 0 };
+  return { files: new Set(), commits: 0, sessionIds: new Set(), errors: 0, worklogs: 0 };
 }
 
 function localDateKey(iso: string): string {
@@ -26,11 +25,21 @@ function addDays(base: Date, days: number): Date {
   return d;
 }
 
-function formatDuration(ms: number): string {
-  const totalMinutes = Math.round(ms / 60000);
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-  return hours === 0 ? `${minutes}분` : `${hours}시간 ${minutes}분`;
+function shiftDateKey(dateKey: string, deltaDays: number): string {
+  const [y, m, d] = dateKey.split('-').map(Number);
+  const date = new Date(y, m - 1, d + deltaDays);
+  return localDateKey(date.toISOString());
+}
+
+// 오늘 기록이 아직 없어도 스트릭이 끊긴 것으로 보이지 않도록, 어제부터 거슬러 올라가며 센다.
+function computeStreak(datesWithActivity: Set<string>, todayKey: string): number {
+  let streak = 0;
+  let cursorKey = datesWithActivity.has(todayKey) ? todayKey : shiftDateKey(todayKey, -1);
+  while (datesWithActivity.has(cursorKey)) {
+    streak += 1;
+    cursorKey = shiftDateKey(cursorKey, -1);
+  }
+  return streak;
 }
 
 // 에러(로그) 소스는 아직 어떤 Collector도 만들지 않아 항상 0으로 집계된다.
@@ -47,15 +56,14 @@ interface MetricDef {
 }
 
 const METRICS: MetricDef[] = [
-  {
-    key: 'work',
-    label: '오늘 작업시간',
-    numeric: (s) => s.workMs,
-    formatValue: (n) => (n > 0 ? formatDuration(n) : '0분'),
-  },
   { key: 'files', label: '수정한 파일 수', numeric: (s) => s.files.size, formatValue: (n) => String(Math.round(n)) },
   { key: 'commits', label: 'Git Commit 수', numeric: (s) => s.commits, formatValue: (n) => String(Math.round(n)) },
-  { key: 'ai', label: 'AI 질문 수', numeric: (s) => s.aiQuestions, formatValue: (n) => String(Math.round(n)) },
+  {
+    key: 'sessions',
+    label: '작업 세션 수',
+    numeric: (s) => s.sessionIds.size,
+    formatValue: (n) => String(Math.round(n)),
+  },
   { key: 'errors', label: '해결한 에러 수', numeric: (s) => s.errors, formatValue: (n) => String(Math.round(n)) },
   {
     key: 'worklogs',
@@ -90,9 +98,15 @@ export function SummaryCards({ projectId }: { projectId?: string }) {
 
   const todayStats = buckets.get(todayKey) ?? emptyDayStats();
   const yesterdayStats = buckets.get(yesterdayKey) ?? emptyDayStats();
+  const streak = computeStreak(new Set(buckets.keys()), todayKey);
 
   return (
     <div className="summary-cards">
+      <div className="summary-card">
+        <div className="summary-card-label">연속 활동일</div>
+        <div className="summary-card-value">{streak}일</div>
+        <div className="summary-card-subtext">🔥 오늘까지 {streak}일째 기록 중</div>
+      </div>
       {METRICS.map((metric) => {
         const todayValue = metric.numeric(todayStats);
         const yesterdayValue = metric.numeric(yesterdayStats);
@@ -137,10 +151,6 @@ function buildBuckets(events: TimelineEvent[], documents: DocumentSummary[]): Ma
 
   for (const event of events) {
     const bucket = getBucket(localDateKey(event.occurredAt));
-    const durationMs = (event.payload as { durationMs?: number } | undefined)?.durationMs;
-    if (event.source === 'ide' && typeof durationMs === 'number') {
-      bucket.workMs += durationMs;
-    }
     const filePath =
       (event.correlationHints?.filePath as string | undefined) ??
       ((event.payload as { filePath?: string } | undefined)?.filePath);
@@ -150,8 +160,8 @@ function buildBuckets(events: TimelineEvent[], documents: DocumentSummary[]): Ma
     if (event.source === 'git' && event.type === 'commit') {
       bucket.commits += 1;
     }
-    if (event.source === 'ai-chat' && event.type === 'chat_exchange') {
-      bucket.aiQuestions += 1;
+    if (event.sessionId) {
+      bucket.sessionIds.add(event.sessionId);
     }
     if (isErrorEvent(event)) {
       bucket.errors += 1;

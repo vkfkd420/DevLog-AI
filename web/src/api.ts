@@ -15,6 +15,8 @@ import type {
   SearchResult,
   SessionSummary,
   TimelineEvent,
+  Todo,
+  TodoRecommendation,
 } from './types';
 
 const API_BASE = 'http://localhost:3000';
@@ -197,4 +199,37 @@ export function updateAutoDraftSetting(
     method: 'PATCH',
     body: JSON.stringify(patch),
   });
+}
+
+// projectId를 생략하면(전체 보기) 모든 프로젝트의 TODO를 가져온다.
+export function fetchTodos(projectId?: string): Promise<Todo[]> {
+  return request<Todo[]>(`/todos${projectId ? `?projectId=${projectId}` : ''}`);
+}
+
+export function createTodo(dto: {
+  projectId: string;
+  title: string;
+  priority?: string;
+  dueDate?: string;
+  source?: string;
+  sessionId?: string;
+  documentId?: string;
+}): Promise<Todo> {
+  return request<Todo>('/todos', { method: 'POST', body: JSON.stringify(dto) });
+}
+
+export function updateTodo(
+  id: string,
+  patch: { title?: string; priority?: string; dueDate?: string | null; completed?: boolean },
+): Promise<Todo> {
+  return request<Todo>(`/todos/${id}`, { method: 'PATCH', body: JSON.stringify(patch) });
+}
+
+export function deleteTodo(id: string): Promise<{ id: string; deleted: boolean }> {
+  return request(`/todos/${id}`, { method: 'DELETE' });
+}
+
+// projectId를 생략하면(전체 보기) 모든 프로젝트를 대상으로 추천을 계산해서 합쳐 받는다.
+export function fetchTodoRecommendations(projectId?: string): Promise<TodoRecommendation[]> {
+  return request<TodoRecommendation[]>(`/todos/recommendations${projectId ? `?projectId=${projectId}` : ''}`);
 }

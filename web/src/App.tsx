@@ -8,6 +8,7 @@ import { AllProjectsWorklogList } from './components/AllProjectsWorklogList';
 import { ConnectorsPanel } from './components/ConnectorsPanel';
 import { ProjectsPanel } from './components/ProjectsPanel';
 import { SummaryCards } from './components/SummaryCards';
+import { TodayTodoCard } from './components/TodayTodoCard';
 import { ActivityHeatmap } from './components/ActivityHeatmap';
 import { InsightCards } from './components/InsightCards';
 import { ProjectStats } from './components/ProjectStats';
@@ -178,6 +179,7 @@ export default function App() {
             {!error && projects.length === 0 && <p className="empty">등록된 프로젝트가 없습니다.</p>}
             {selectedProjectId && (
               <>
+                <TodayTodoCard projectId={effectiveProjectId} projects={projects} />
                 <SummaryCards projectId={effectiveProjectId} />
                 <ActivityHeatmap projectId={effectiveProjectId} />
                 <InsightCards projectId={effectiveProjectId} />

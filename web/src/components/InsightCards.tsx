@@ -9,41 +9,6 @@ interface Insight {
   detail: string;
 }
 
-const STOPWORDS = new Set([
-  '이거',
-  '저거',
-  '그거',
-  '이것',
-  '저것',
-  '그것',
-  '어떻게',
-  '왜',
-  '무엇',
-  '어디서',
-  '언제',
-  '있나요',
-  '있습니까',
-  '해야',
-  '하는',
-  '합니다',
-  'the',
-  'a',
-  'an',
-  'is',
-  'are',
-  'to',
-  'of',
-  'in',
-  'on',
-  'for',
-  'and',
-  'how',
-  'what',
-  'why',
-  'this',
-  'that',
-]);
-
 function filePath(event: TimelineEvent): string | null {
   return (
     (event.correlationHints?.filePath as string | undefined) ??
@@ -60,12 +25,7 @@ function isErrorEvent(event: TimelineEvent): boolean {
   return event.type === 'error' || event.source === 'log';
 }
 
-function formatDuration(ms: number): string {
-  const totalMinutes = Math.round(ms / 60000);
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-  return hours === 0 ? `${minutes}분` : `${hours}시간 ${minutes}분`;
-}
+const WEEKDAY_LABELS = ['일', '월', '화', '수', '목', '금', '토'];
 
 function topEntry<T>(counts: Map<T, number>): [T, number] | null {
   let best: [T, number] | null = null;
@@ -79,10 +39,11 @@ function topEntry<T>(counts: Map<T, number>): [T, number] | null {
 
 function buildInsights(events: TimelineEvent[]): Insight[] {
   const editCounts = new Map<string, number>();
-  const workMsByFile = new Map<string, number>();
   const errorCounts = new Map<string, number>();
-  const wordCounts = new Map<string, number>();
   const hourCounts = new Map<number, number>();
+  const weekdayCounts = new Map<number, number>();
+  let commitsWithFiles = 0;
+  let totalFilesInCommits = 0;
 
   for (const event of events) {
     const fp = filePath(event);
@@ -90,9 +51,12 @@ function buildInsights(events: TimelineEvent[]): Insight[] {
       editCounts.set(fp, (editCounts.get(fp) ?? 0) + 1);
     }
 
-    const durationMs = (event.payload as { durationMs?: number } | undefined)?.durationMs;
-    if (event.source === 'ide' && fp && typeof durationMs === 'number') {
-      workMsByFile.set(fp, (workMsByFile.get(fp) ?? 0) + durationMs);
+    if (event.source === 'git' && event.type === 'commit') {
+      const files = (event.payload as { files?: string[] } | undefined)?.files;
+      if (Array.isArray(files)) {
+        commitsWithFiles += 1;
+        totalFilesInCommits += files.length;
+      }
     }
 
     if (isErrorEvent(event)) {
@@ -101,19 +65,9 @@ function buildInsights(events: TimelineEvent[]): Insight[] {
       errorCounts.set(errorKey, (errorCounts.get(errorKey) ?? 0) + 1);
     }
 
-    if (event.source === 'ai-chat' && event.type === 'chat_exchange') {
-      const question = (event.payload as { question?: string } | undefined)?.question ?? '';
-      const words = question
-        .split(/[\s,.?!"'()[\]{}:;/\\~`]+/)
-        .map((w) => w.trim().toLowerCase())
-        .filter((w) => w.length >= 2 && !STOPWORDS.has(w));
-      for (const word of words) {
-        wordCounts.set(word, (wordCounts.get(word) ?? 0) + 1);
-      }
-    }
-
-    const hour = new Date(event.occurredAt).getHours();
-    hourCounts.set(hour, (hourCounts.get(hour) ?? 0) + 1);
+    const occurredAt = new Date(event.occurredAt);
+    hourCounts.set(occurredAt.getHours(), (hourCounts.get(occurredAt.getHours()) ?? 0) + 1);
+    weekdayCounts.set(occurredAt.getDay(), (weekdayCounts.get(occurredAt.getDay()) ?? 0) + 1);
   }
 
   const insights: Insight[] = [];
@@ -126,12 +80,12 @@ function buildInsights(events: TimelineEvent[]): Insight[] {
     detail: topEdit ? `${topEdit[1]}회 수정됨` : 'IDE 커넥터 연결이 필요합니다',
   });
 
-  const topWork = topEntry(workMsByFile);
+  const avgFilesPerCommit = commitsWithFiles > 0 ? totalFilesInCommits / commitsWithFiles : 0;
   insights.push({
-    key: 'longest-worked-file',
-    label: '가장 오래 작업한 파일',
-    value: topWork ? fileName(topWork[0]) : '데이터 없음',
-    detail: topWork ? formatDuration(topWork[1]) : 'IDE 커넥터 연결이 필요합니다',
+    key: 'avg-files-per-commit',
+    label: '평균 파일 수 / 커밋',
+    value: commitsWithFiles > 0 ? avgFilesPerCommit.toFixed(1) : '데이터 없음',
+    detail: commitsWithFiles > 0 ? `${commitsWithFiles}건 커밋 기준` : 'Git 커밋 기록이 없습니다',
   });
 
   const topError = topEntry(errorCounts);
@@ -142,12 +96,12 @@ function buildInsights(events: TimelineEvent[]): Insight[] {
     detail: topError ? `${topError[1]}회 발생` : '에러 수집 기능이 아직 없습니다',
   });
 
-  const topWord = topEntry(wordCounts);
+  const topWeekday = topEntry(weekdayCounts);
   insights.push({
-    key: 'most-asked-topic',
-    label: '가장 많이 질문한 주제',
-    value: topWord ? topWord[0] : '데이터 없음',
-    detail: topWord ? `AI 대화에서 ${topWord[1]}회 언급` : 'AI 대화 기록이 없습니다',
+    key: 'most-active-weekday',
+    label: '가장 활발한 요일',
+    value: topWeekday ? `${WEEKDAY_LABELS[topWeekday[0]]}요일` : '데이터 없음',
+    detail: topWeekday ? `이 요일에 활동 ${topWeekday[1]}건` : '활동 데이터가 없습니다',
   });
 
   const topHour = topEntry(hourCounts);

@@ -18,6 +18,7 @@ import { SearchModule } from './search/search.module';
 import { AutoSyncModule } from './scheduler/auto-sync.module';
 import { QuickRegisterModule } from './onboarding/quick-register.module';
 import { SettingsModule } from './settings/settings.module';
+import { TodoModule } from './todos/todo.module';
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { SettingsModule } from './settings/settings.module';
     AutoSyncModule,
     QuickRegisterModule,
     SettingsModule,
+    TodoModule,
   ],
   controllers: [AppController],
   providers: [AppService],

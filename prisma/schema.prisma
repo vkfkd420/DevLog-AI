@@ -46,6 +46,7 @@ model Project {
   documents       Document[]
   connectors      Connector[]
   knowledgeEntries KnowledgeEntry[]
+  todos           Todo[]
 
   @@index([workspaceId])
 }
@@ -116,6 +117,7 @@ model Event {
   linksAsB          EventLink[]              @relation("EventLinkB")
   evidenceFor       DocumentEvidence[]
   knowledgeEvidence KnowledgeEventEvidence[]
+  todos             Todo[]
 
   @@index([projectId, occurredAt])
   @@index([sessionId])
@@ -137,6 +139,7 @@ model Session {
   createdAt        DateTime @default(now())
 
   events Event[]
+  todos  Todo[]
 
   @@index([projectId, startAt])
   @@index([algorithmVersion])
@@ -185,6 +188,7 @@ model Document {
   versions          DocumentVersion[]
   evidence          DocumentEvidence[]
   knowledgeEvidence KnowledgeDocumentEvidence[]
+  todos             Todo[]
 
   @@index([projectId, type, periodStart])
   @@index([status])
@@ -262,4 +266,33 @@ model KnowledgeDocumentEvidence {
 
   @@unique([knowledgeId, documentId])
   @@index([documentId])
+}
+
+// "오늘 해야 할 일" — 사용자가 직접 등록하거나(manual), AI 추천 카드에서 "추가" 버튼을 눌러
+// 등록한(ai_suggested) TODO. 완료 상태를 토글하는 살아있는 엔티티라 append-only인
+// Document/Event와 구조가 달라서 별도 테이블로 둔다. Session/Event/Document 연결은
+// 전부 optional — "개발 기록과 업무를 연결"하되 강제하지는 않는다.
+model Todo {
+  id          String    @id @default(cuid())
+  projectId   String
+  project     Project   @relation(fields: [projectId], references: [id])
+  title       String
+  // high | normal | low
+  priority    String    @default("normal")
+  dueDate     DateTime?
+  completed   Boolean   @default(false)
+  completedAt DateTime?
+  // manual | ai_suggested — AI는 추천만 하고, 이 값이 ai_suggested인 행도
+  // 결국 사용자가 "오늘 할 일 추가"를 눌러야만 생긴다 (AI가 직접 만들지 않음).
+  source      String    @default("manual")
+  createdAt   DateTime  @default(now())
+
+  sessionId  String?
+  session    Session?  @relation(fields: [sessionId], references: [id])
+  eventId    String?
+  event      Event?    @relation(fields: [eventId], references: [id])
+  documentId String?
+  document   Document? @relation(fields: [documentId], references: [id])
+
+  @@index([projectId, completed])
 }
