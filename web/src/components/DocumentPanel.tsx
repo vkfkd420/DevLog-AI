@@ -11,41 +11,59 @@ import {
 import type { DocumentDetail, DocumentSummary, DocumentVersionInfo } from '../types';
 import { parseWorklog, WorklogCard } from './WorklogCard';
 
+// "업무일지 (전체)" 목록과 같은 아코디언 UI를 쓴다 — 항목을 눌러 그 자리에서 펼치고,
+// 여러 개를 동시에 펼쳐둘 수 있다. 편집/버전 이력만 한 번에 하나씩만 열리게 해서 폼 상태가 꼬이지 않게 한다.
 export function DocumentPanel({ projectId }: { projectId: string }) {
   const [documents, setDocuments] = useState<DocumentSummary[]>([]);
-  const [selected, setSelected] = useState<DocumentDetail | null>(null);
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const [detailsCache, setDetailsCache] = useState<Map<string, DocumentDetail>>(new Map());
+  const [loadingId, setLoadingId] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [generating, setGenerating] = useState(false);
-  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [editing, setEditing] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState('');
   const [changeNote, setChangeNote] = useState('');
 
-  const [showVersions, setShowVersions] = useState(false);
-  const [versions, setVersions] = useState<DocumentVersionInfo[] | null>(null);
+  const [showVersionsId, setShowVersionsId] = useState<string | null>(null);
+  const [versionsCache, setVersionsCache] = useState<Map<string, DocumentVersionInfo[]>>(new Map());
 
   const reload = () => fetchDocuments(projectId).then(setDocuments);
 
   useEffect(() => {
-    resetSelection();
+    setExpandedIds(new Set());
+    setDetailsCache(new Map());
+    setEditingId(null);
+    setShowVersionsId(null);
+    setVersionsCache(new Map());
     setError(null);
     reload();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
 
-  const resetSelection = () => {
-    setSelected(null);
-    setEditing(false);
-    setShowVersions(false);
-    setVersions(null);
+  const ensureDetail = (id: string) => {
+    if (detailsCache.has(id)) return;
+    setLoadingId(id);
+    fetchDocument(id)
+      .then((detail) => setDetailsCache((prev) => new Map(prev).set(id, detail)))
+      .catch((e) => setError(String(e)))
+      .finally(() => setLoadingId(null));
   };
 
-  const handleSelect = (id: string) => {
-    setEditing(false);
-    setShowVersions(false);
-    setVersions(null);
-    fetchDocument(id).then(setSelected).catch((e) => setError(String(e)));
+  const toggleExpand = (id: string) => {
+    setError(null);
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+    ensureDetail(id);
   };
 
   const handleGenerate = async () => {
@@ -54,7 +72,9 @@ export function DocumentPanel({ projectId }: { projectId: string }) {
     try {
       const result = await generateWorklog(projectId, date);
       await reload();
-      handleSelect(result.documentId);
+      setExpandedIds((prev) => new Set(prev).add(result.documentId));
+      const detail = await fetchDocument(result.documentId);
+      setDetailsCache((prev) => new Map(prev).set(result.documentId, detail));
     } catch (e) {
       setError(String(e));
     } finally {
@@ -62,85 +82,95 @@ export function DocumentPanel({ projectId }: { projectId: string }) {
     }
   };
 
-  const startEdit = () => {
-    if (!selected) return;
-    setEditing(true);
-    setEditContent(selected.content ?? '');
+  const startEdit = (id: string, detail: DocumentDetail) => {
+    setEditingId(id);
+    setEditContent(detail.content ?? '');
     setChangeNote('');
   };
 
   const cancelEdit = () => {
-    setEditing(false);
+    setEditingId(null);
     setEditContent('');
     setChangeNote('');
   };
 
-  const saveEdit = async () => {
-    if (!selected) return;
-    setBusy(true);
+  const saveEdit = async (id: string) => {
+    setBusyId(id);
     setError(null);
     try {
-      await editDocument(selected.id, editContent, changeNote.trim() || undefined);
-      const fresh = await fetchDocument(selected.id);
-      setSelected(fresh);
-      setEditing(false);
+      await editDocument(id, editContent, changeNote.trim() || undefined);
+      const fresh = await fetchDocument(id);
+      setDetailsCache((prev) => new Map(prev).set(id, fresh));
+      setEditingId(null);
       await reload();
     } catch (e) {
       setError(String(e));
     } finally {
-      setBusy(false);
+      setBusyId(null);
     }
   };
 
-  const handleFinalize = async () => {
-    if (!selected) return;
-    setBusy(true);
+  const handleFinalize = async (id: string) => {
+    setBusyId(id);
     setError(null);
     try {
-      await finalizeDocument(selected.id);
-      const fresh = await fetchDocument(selected.id);
-      setSelected(fresh);
+      await finalizeDocument(id);
+      const fresh = await fetchDocument(id);
+      setDetailsCache((prev) => new Map(prev).set(id, fresh));
       await reload();
     } catch (e) {
       setError(String(e));
     } finally {
-      setBusy(false);
+      setBusyId(null);
     }
   };
 
-  const handleDelete = async () => {
-    if (!selected) return;
+  const handleDelete = async (id: string) => {
     if (!window.confirm('이 업무일지를 삭제할까요? 같은 날짜로 다시 생성할 수 있습니다.')) {
       return;
     }
-    setBusy(true);
+    setBusyId(id);
     setError(null);
     try {
-      await deleteDocument(selected.id);
-      resetSelection();
+      await deleteDocument(id);
+      setExpandedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+      setDetailsCache((prev) => {
+        const next = new Map(prev);
+        next.delete(id);
+        return next;
+      });
+      if (editingId === id) cancelEdit();
+      if (showVersionsId === id) setShowVersionsId(null);
       await reload();
     } catch (e) {
       setError(String(e));
     } finally {
-      setBusy(false);
+      setBusyId(null);
     }
   };
 
-  const toggleVersions = async () => {
-    if (!selected) return;
-    if (!showVersions) {
+  const toggleVersions = async (id: string) => {
+    if (showVersionsId === id) {
+      setShowVersionsId(null);
+      return;
+    }
+    if (!versionsCache.has(id)) {
       try {
-        const data = await fetchDocumentVersions(selected.id);
-        setVersions(data);
+        const data = await fetchDocumentVersions(id);
+        setVersionsCache((prev) => new Map(prev).set(id, data));
       } catch (e) {
         setError(String(e));
         return;
       }
     }
-    setShowVersions((value) => !value);
+    setShowVersionsId(id);
   };
 
-  const worklog = selected ? parseWorklog(selected.content) : null;
+  const sorted = [...documents].sort((a, b) => b.periodStart.localeCompare(a.periodStart));
 
   return (
     <section className="panel">
@@ -153,80 +183,99 @@ export function DocumentPanel({ projectId }: { projectId: string }) {
       </div>
       {error && <p className="error">{error}</p>}
 
-      {documents.length === 0 ? (
+      {sorted.length === 0 ? (
         <p className="empty">생성된 업무일지가 없습니다.</p>
       ) : (
-        <ul className="document-list">
-          {documents.map((doc) => (
-            <li key={doc.id}>
-              <button className="link" onClick={() => handleSelect(doc.id)}>
-                <span>{doc.periodStart.slice(0, 10)}</span>
-                <span className={`status-badge ${doc.status === 'final' ? 'enabled' : 'disabled'}`}>
-                  {doc.status === 'final' ? '확정' : '초안'}
+        sorted.map((doc) => {
+          const expanded = expandedIds.has(doc.id);
+          const detail = detailsCache.get(doc.id);
+          const worklog = detail ? parseWorklog(detail.content) : null;
+          const isEditing = editingId === doc.id;
+          const showingVersions = showVersionsId === doc.id;
+
+          return (
+            <div key={doc.id} className="session-card">
+              <button className="report-group-header" onClick={() => toggleExpand(doc.id)}>
+                <span className="report-group-period">{doc.periodStart.slice(0, 10)}</span>
+                <span className="report-group-projects">
+                  <span className={`status-badge ${doc.status === 'final' ? 'enabled' : 'disabled'}`}>
+                    {doc.status === 'final' ? '확정' : '초안'}
+                  </span>
                 </span>
+                <span className="report-group-toggle">{expanded ? '▲' : '▼'}</span>
               </button>
-            </li>
-          ))}
-        </ul>
-      )}
 
-      {selected && (
-        <article className="document-content">
-          <div className="document-content-header">
-            <span className={`status-badge ${selected.status === 'final' ? 'enabled' : 'disabled'}`}>
-              {selected.status === 'final' ? '확정' : '초안'}
-            </span>
-            <div className="document-actions">
-              {selected.status === 'draft' && !editing && <button onClick={startEdit}>편집</button>}
-              {selected.status === 'draft' && (
-                <button onClick={handleFinalize} disabled={busy}>
-                  확정
-                </button>
-              )}
-              <button onClick={toggleVersions}>{showVersions ? '버전 이력 숨기기' : '버전 이력 보기'}</button>
-              <button className="btn-danger" onClick={handleDelete} disabled={busy}>
-                삭제
-              </button>
-            </div>
-          </div>
+              {expanded && (
+                <div className="report-group-body">
+                  {loadingId === doc.id || !detail ? (
+                    <p className="empty">불러오는 중...</p>
+                  ) : (
+                    <article className="document-content">
+                      <div className="document-content-header">
+                        <span className={`status-badge ${detail.status === 'final' ? 'enabled' : 'disabled'}`}>
+                          {detail.status === 'final' ? '확정' : '초안'}
+                        </span>
+                        <div className="document-actions">
+                          {detail.status === 'draft' && !isEditing && (
+                            <button onClick={() => startEdit(doc.id, detail)}>편집</button>
+                          )}
+                          {detail.status === 'draft' && (
+                            <button onClick={() => handleFinalize(doc.id)} disabled={busyId === doc.id}>
+                              확정
+                            </button>
+                          )}
+                          <button onClick={() => toggleVersions(doc.id)}>
+                            {showingVersions ? '버전 이력 숨기기' : '버전 이력 보기'}
+                          </button>
+                          <button className="btn-danger" onClick={() => handleDelete(doc.id)} disabled={busyId === doc.id}>
+                            삭제
+                          </button>
+                        </div>
+                      </div>
 
-          {editing ? (
-            <div className="edit-form">
-              <textarea value={editContent} onChange={(e) => setEditContent(e.target.value)} rows={12} />
-              <input
-                placeholder="변경 사유 (선택)"
-                value={changeNote}
-                onChange={(e) => setChangeNote(e.target.value)}
-              />
-              <div className="edit-actions">
-                <button onClick={saveEdit} disabled={busy}>
-                  저장
-                </button>
-                <button onClick={cancelEdit} disabled={busy}>
-                  취소
-                </button>
-              </div>
-            </div>
-          ) : worklog ? (
-            <WorklogCard payload={worklog} />
-          ) : (
-            <pre>{selected.content}</pre>
-          )}
+                      {isEditing ? (
+                        <div className="edit-form">
+                          <textarea value={editContent} onChange={(e) => setEditContent(e.target.value)} rows={12} />
+                          <input
+                            placeholder="변경 사유 (선택)"
+                            value={changeNote}
+                            onChange={(e) => setChangeNote(e.target.value)}
+                          />
+                          <div className="edit-actions">
+                            <button onClick={() => saveEdit(doc.id)} disabled={busyId === doc.id}>
+                              저장
+                            </button>
+                            <button onClick={cancelEdit} disabled={busyId === doc.id}>
+                              취소
+                            </button>
+                          </div>
+                        </div>
+                      ) : worklog ? (
+                        <WorklogCard payload={worklog} />
+                      ) : (
+                        <pre>{detail.content}</pre>
+                      )}
 
-          {showVersions && versions && (
-            <div className="version-history">
-              <h3>버전 이력</h3>
-              {versions.map((version) => (
-                <div key={version.id} className="version-item">
-                  <span className="version-tag">v{version.versionNumber}</span>
-                  <span>{version.generatedBy === 'ai_generated' ? 'AI 생성' : '사용자 편집'}</span>
-                  <span className="time">{new Date(version.createdAt).toLocaleString('ko-KR')}</span>
-                  {version.changeNote && <span className="change-note">{version.changeNote}</span>}
+                      {showingVersions && versionsCache.get(doc.id) && (
+                        <div className="version-history">
+                          <h3>버전 이력</h3>
+                          {versionsCache.get(doc.id)!.map((version) => (
+                            <div key={version.id} className="version-item">
+                              <span className="version-tag">v{version.versionNumber}</span>
+                              <span>{version.generatedBy === 'ai_generated' ? 'AI 생성' : '사용자 편집'}</span>
+                              <span className="time">{new Date(version.createdAt).toLocaleString('ko-KR')}</span>
+                              {version.changeNote && <span className="change-note">{version.changeNote}</span>}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </article>
+                  )}
                 </div>
-              ))}
+              )}
             </div>
-          )}
-        </article>
+          );
+        })
       )}
     </section>
   );

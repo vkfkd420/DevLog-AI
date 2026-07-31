@@ -207,7 +207,7 @@ export function fetchTodos(projectId?: string): Promise<Todo[]> {
 }
 
 export function createTodo(dto: {
-  projectId: string;
+  projectId?: string;
   title: string;
   priority?: string;
   dueDate?: string;

@@ -12,9 +12,6 @@ export class TodoService {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(dto: CreateTodoDto): Promise<Todo> {
-    if (!dto.projectId) {
-      throw new BadRequestException('projectId는 필수 값입니다.');
-    }
     if (!dto.title?.trim()) {
       throw new BadRequestException('title은 필수 값입니다.');
     }
@@ -24,7 +21,7 @@ export class TodoService {
 
     return this.prisma.todo.create({
       data: {
-        projectId: dto.projectId,
+        projectId: dto.projectId ?? null,
         title: dto.title.trim(),
         priority: dto.priority ?? 'normal',
         dueDate: dto.dueDate ? new Date(dto.dueDate) : undefined,
@@ -36,11 +33,15 @@ export class TodoService {
     });
   }
 
-  /** projectId를 생략하면(전체 보기) 모든 프로젝트의 TODO를 가져온다. */
+  /**
+   * projectId를 생략하면(전체 보기) 모든 프로젝트 + 프로젝트 없는 일반 TODO를 가져온다.
+   * projectId를 지정하면 그 프로젝트 것과, 프로젝트에 속하지 않는 일반 TODO를 함께 가져온다
+   * (일반 TODO는 어느 프로젝트를 보고 있든 항상 보여야 하므로).
+   */
   async list(filter: QueryTodosDto): Promise<Todo[]> {
     return this.prisma.todo.findMany({
       where: {
-        projectId: filter.projectId,
+        OR: filter.projectId ? [{ projectId: filter.projectId }, { projectId: null }] : undefined,
         completed: filter.completed === undefined ? undefined : filter.completed === 'true',
       },
       orderBy: [{ createdAt: 'asc' }],

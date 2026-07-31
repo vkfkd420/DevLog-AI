@@ -1021,6 +1021,14 @@ textarea {
   color: var(--text-muted);
 }
 
+.todo-general-tag {
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  background: var(--surface-hover);
+  color: var(--text-muted);
+}
+
 .todo-recommend-list {
   list-style: none;
   margin: 0;

@@ -1,5 +1,6 @@
 export interface CreateTodoDto {
-  projectId: string;
+  /** 생략하면 프로젝트에 속하지 않는 일반 할 일로 등록된다. */
+  projectId?: string;
   title: string;
   /** high | normal | low, 기본 normal */
   priority?: string;

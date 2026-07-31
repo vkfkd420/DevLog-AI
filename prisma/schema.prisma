@@ -274,8 +274,9 @@ model KnowledgeDocumentEvidence {
 // 전부 optional — "개발 기록과 업무를 연결"하되 강제하지는 않는다.
 model Todo {
   id          String    @id @default(cuid())
-  projectId   String
-  project     Project   @relation(fields: [projectId], references: [id])
+  // 프로젝트에 속하지 않는(개발 업무가 아닌) 일반 할 일도 등록할 수 있도록 projectId는 선택값이다.
+  projectId   String?
+  project     Project?  @relation(fields: [projectId], references: [id])
   title       String
   // high | normal | low
   priority    String    @default("normal")

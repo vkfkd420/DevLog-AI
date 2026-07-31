@@ -36,7 +36,7 @@ export function TodayTodoCard({ projectId, projects }: { projectId?: string; pro
   const [title, setTitle] = useState('');
   const [priority, setPriority] = useState<Todo['priority']>('normal');
   const [dueDate, setDueDate] = useState('');
-  const [quickAddProjectId, setQuickAddProjectId] = useState(projectId ?? projects[0]?.id ?? '');
+  const [quickAddProjectId, setQuickAddProjectId] = useState(projectId ?? '');
   const [submitting, setSubmitting] = useState(false);
 
   const isAllProjects = projectId === undefined;
@@ -60,16 +60,16 @@ export function TodayTodoCard({ projectId, projects }: { projectId?: string; pro
   }, [projectId]);
 
   useEffect(() => {
-    setQuickAddProjectId(projectId ?? projects[0]?.id ?? '');
-  }, [projectId, projects]);
+    setQuickAddProjectId(projectId ?? '');
+  }, [projectId]);
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim() || !quickAddProjectId) return;
+    if (!title.trim()) return;
     setSubmitting(true);
     try {
       await createTodo({
-        projectId: quickAddProjectId,
+        projectId: quickAddProjectId || undefined,
         title: title.trim(),
         priority,
         dueDate: dueDate || undefined,
@@ -120,15 +120,14 @@ export function TodayTodoCard({ projectId, projects }: { projectId?: string; pro
             value={title}
             onChange={(e) => setTitle(e.target.value)}
           />
-          {isAllProjects && (
-            <select value={quickAddProjectId} onChange={(e) => setQuickAddProjectId(e.target.value)}>
-              {projects.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          )}
+          <select value={quickAddProjectId} onChange={(e) => setQuickAddProjectId(e.target.value)}>
+            <option value="">프로젝트 없음</option>
+            {projects.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
           <select value={priority} onChange={(e) => setPriority(e.target.value as Todo['priority'])}>
             <option value="high">높음</option>
             <option value="normal">보통</option>
@@ -151,7 +150,7 @@ export function TodayTodoCard({ projectId, projects }: { projectId?: string; pro
                   <span className="todo-item-title">{todo.title}</span>
                 </label>
                 <div className="todo-item-meta">
-                  {isAllProjects && (
+                  {todo.projectId ? (
                     <span className="calendar-legend-item">
                       <span
                         className="calendar-legend-dot"
@@ -159,6 +158,8 @@ export function TodayTodoCard({ projectId, projects }: { projectId?: string; pro
                       />
                       {projectName(todo.projectId)}
                     </span>
+                  ) : (
+                    <span className="todo-general-tag">일반</span>
                   )}
                   <span className={`todo-priority-tag todo-priority-${todo.priority}`}>
                     {PRIORITY_LABEL[todo.priority]}

@@ -132,7 +132,8 @@ export interface KnowledgeEntryDetail extends KnowledgeEntrySummary {
 
 export interface Todo {
   id: string;
-  projectId: string;
+  // null이면 프로젝트에 속하지 않는 일반 할 일이다.
+  projectId: string | null;
   title: string;
   priority: 'high' | 'normal' | 'low';
   dueDate: string | null;
