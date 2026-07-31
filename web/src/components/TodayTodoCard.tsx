@@ -6,11 +6,10 @@ import type { Project, Todo, TodoRecommendation } from '../types';
 const PRIORITY_ORDER: Record<Todo['priority'], number> = { high: 0, normal: 1, low: 2 };
 const PRIORITY_LABEL: Record<Todo['priority'], string> = { high: '높음', normal: '보통', low: '낮음' };
 
-function sortTodos(todos: Todo[]): Todo[] {
+// 완료된 항목은 별도 접이식 섹션으로 빼고(Google Tasks 방식), 진행 중인 항목만 우선순위 → 마감일 →
+// 등록순으로 정렬해서 보여준다.
+function sortActive(todos: Todo[]): Todo[] {
   return [...todos].sort((a, b) => {
-    if (a.completed !== b.completed) {
-      return a.completed ? 1 : -1;
-    }
     if (a.priority !== b.priority) {
       return PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority];
     }
@@ -23,6 +22,11 @@ function sortTodos(todos: Todo[]): Todo[] {
     }
     return a.createdAt.localeCompare(b.createdAt);
   });
+}
+
+// 완료됨 섹션은 최근에 완료한 것부터 보여준다.
+function sortCompleted(todos: Todo[]): Todo[] {
+  return [...todos].sort((a, b) => (b.completedAt ?? b.createdAt).localeCompare(a.completedAt ?? a.createdAt));
 }
 
 function formatDueDate(dueDate: string | null): string | null {
@@ -38,6 +42,7 @@ export function TodayTodoCard({ projectId, projects }: { projectId?: string; pro
   const [dueDate, setDueDate] = useState('');
   const [quickAddProjectId, setQuickAddProjectId] = useState(projectId ?? '');
   const [submitting, setSubmitting] = useState(false);
+  const [showCompleted, setShowCompleted] = useState(false);
 
   const isAllProjects = projectId === undefined;
   const sortedProjectIds = [...projects].map((p) => p.id).sort();
@@ -104,7 +109,35 @@ export function TodayTodoCard({ projectId, projects }: { projectId?: string; pro
     reload();
   };
 
-  const sorted = todos ? sortTodos(todos) : [];
+  const activeTodos = sortActive(todos?.filter((t) => !t.completed) ?? []);
+  const completedTodos = sortCompleted(todos?.filter((t) => t.completed) ?? []);
+
+  const renderTodoRow = (todo: Todo) => (
+    <li key={todo.id} className={`todo-item${todo.completed ? ' todo-item-done' : ''}`}>
+      <label className="todo-item-main">
+        <input type="checkbox" checked={todo.completed} onChange={() => handleToggle(todo)} />
+        <span className="todo-item-title">{todo.title}</span>
+      </label>
+      <div className="todo-item-meta">
+        {todo.projectId ? (
+          <span className="calendar-legend-item">
+            <span
+              className="calendar-legend-dot"
+              style={{ background: colorForProject(todo.projectId, sortedProjectIds) }}
+            />
+            {projectName(todo.projectId)}
+          </span>
+        ) : (
+          <span className="todo-general-tag">일반</span>
+        )}
+        <span className={`todo-priority-tag todo-priority-${todo.priority}`}>{PRIORITY_LABEL[todo.priority]}</span>
+        {formatDueDate(todo.dueDate) && <span className="todo-due-tag">{formatDueDate(todo.dueDate)}</span>}
+        <button className="btn-secondary" onClick={() => handleDelete(todo.id)}>
+          삭제
+        </button>
+      </div>
+    </li>
+  );
 
   return (
     <div className="todo-card-group">
@@ -140,38 +173,21 @@ export function TodayTodoCard({ projectId, projects }: { projectId?: string; pro
         </form>
 
         {todos === null && <p className="empty">할 일을 불러오는 중...</p>}
-        {todos !== null && sorted.length === 0 && <p className="empty">등록된 할 일이 없습니다.</p>}
-        {todos !== null && sorted.length > 0 && (
-          <ul className="todo-list">
-            {sorted.map((todo) => (
-              <li key={todo.id} className={`todo-item${todo.completed ? ' todo-item-done' : ''}`}>
-                <label className="todo-item-main">
-                  <input type="checkbox" checked={todo.completed} onChange={() => handleToggle(todo)} />
-                  <span className="todo-item-title">{todo.title}</span>
-                </label>
-                <div className="todo-item-meta">
-                  {todo.projectId ? (
-                    <span className="calendar-legend-item">
-                      <span
-                        className="calendar-legend-dot"
-                        style={{ background: colorForProject(todo.projectId, sortedProjectIds) }}
-                      />
-                      {projectName(todo.projectId)}
-                    </span>
-                  ) : (
-                    <span className="todo-general-tag">일반</span>
-                  )}
-                  <span className={`todo-priority-tag todo-priority-${todo.priority}`}>
-                    {PRIORITY_LABEL[todo.priority]}
-                  </span>
-                  {formatDueDate(todo.dueDate) && <span className="todo-due-tag">{formatDueDate(todo.dueDate)}</span>}
-                  <button className="btn-secondary" onClick={() => handleDelete(todo.id)}>
-                    삭제
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
+        {todos !== null && activeTodos.length === 0 && completedTodos.length === 0 && (
+          <p className="empty">등록된 할 일이 없습니다.</p>
+        )}
+        {todos !== null && activeTodos.length === 0 && completedTodos.length > 0 && (
+          <p className="empty">진행 중인 할 일이 없습니다.</p>
+        )}
+        {activeTodos.length > 0 && <ul className="todo-list">{activeTodos.map(renderTodoRow)}</ul>}
+
+        {completedTodos.length > 0 && (
+          <div className="todo-completed-section">
+            <button type="button" className="link" onClick={() => setShowCompleted((v) => !v)}>
+              완료됨 ({completedTodos.length}) {showCompleted ? '▲' : '▼'}
+            </button>
+            {showCompleted && <ul className="todo-list">{completedTodos.map(renderTodoRow)}</ul>}
+          </div>
         )}
       </div>
 
