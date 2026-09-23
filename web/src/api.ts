@@ -2,6 +2,7 @@ import type {
   AutoDraftSetting,
   AutoSyncResult,
   Connector,
+  DiscoveredProject,
   DocumentDetail,
   DocumentSummary,
   DocumentVersionInfo,
@@ -43,6 +44,11 @@ export function quickRegisterProject(name: string, rootPath: string): Promise<Qu
     method: 'POST',
     body: JSON.stringify({ name, rootPath }),
   });
+}
+
+// 상위 폴더 아래에서 아직 등록 안 된 git 저장소 후보를 찾는다 (등록은 하지 않고 후보만 반환).
+export function discoverProjects(root: string): Promise<DiscoveredProject[]> {
+  return request<DiscoveredProject[]>(`/projects/discover/scan?root=${encodeURIComponent(root)}`);
 }
 
 export function updateProject(id: string, patch: { name?: string; archived?: boolean }): Promise<Project> {

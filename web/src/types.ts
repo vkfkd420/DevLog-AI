@@ -25,6 +25,11 @@ export interface QuickRegisterResult {
   syncError: string | null;
 }
 
+export interface DiscoveredProject {
+  path: string;
+  name: string;
+}
+
 export interface TimelineEvent {
   id: string;
   projectId: string | null;
