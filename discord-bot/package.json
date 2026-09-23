@@ -1,0 +1,19 @@
+{
+  "name": "devlog-ai-discord-bot",
+  "version": "0.1.0",
+  "private": true,
+  "description": "DevLog AI의 '오늘의 TODO'를 디스코드 슬래시 커맨드로 보고 처리하는 미니 봇",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "deploy-commands": "node dist/deploy-commands.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.16.3",
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.9",
+    "typescript": "^5.5.4"
+  }
+}
